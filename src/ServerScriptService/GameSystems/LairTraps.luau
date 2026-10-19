@@ -91,6 +91,7 @@ end
 -- Called only from the owning server loop; plates and periodic motion share one state machine.
 function Traps:Step(players,now)
     local roots,actors={},{}
+    for _,root in self.servantRoots or {} do table.insert(actors,root) end
     for _,player in ipairs(players) do
         local root=Safety.Root(player)
         if root then table.insert(roots,root);table.insert(actors,root) end

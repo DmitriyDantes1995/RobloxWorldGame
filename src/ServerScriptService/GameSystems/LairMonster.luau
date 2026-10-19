@@ -245,15 +245,16 @@ end
 
 function Monster:Move(goal,speed)
     self.humanoid.WalkSpeed=speed
-    if horizontal(goal-self.root.Position).Magnitude<3 then
+    if horizontal(goal-self.root.Position).Magnitude<3 and math.abs(goal.Y-self.root.Position.Y)<6 then
         self.humanoid:MoveTo(self.root.Position);return true
     end
     local now=os.clock()
-    if now-self.lastPath>=Config.RepathSeconds and (not self.waypoints or horizontal(goal-self.pathGoal).Magnitude>5) then
+    if now-self.lastPath>=Config.RepathSeconds and (not self.waypoints or (goal-self.pathGoal).Magnitude>5) then
         self:ComputePath(goal)
     end
     local point=self.waypoints and self.waypoints[self.pathIndex]
-    while point and horizontal(point.Position-self.root.Position).Magnitude<2.6 do
+    while point and horizontal(point.Position-self.root.Position).Magnitude<2.6
+        and math.abs(point.Position.Y-(self.root.Position.Y-5))<3 do
         self.pathIndex+=1;point=self.waypoints[self.pathIndex]
     end
     if point then
@@ -405,7 +406,8 @@ function Monster:Step(dt)
             elseif visible and distance<=Config.CatchRadius then self:Catch(self.target)
             else
                 local direction=horizontal(root.Position-self.root.Position)
-                local open=visible and distance>=Config.DashMinDistance and distance<=Config.DashMaxDistance
+                local open=visible and math.abs(root.Position.Y-(self.root.Position.Y-2))<4
+                    and distance>=Config.DashMinDistance and distance<=Config.DashMaxDistance
                     and direction.Magnitude>.1 and direction.Unit:Dot(self.root.CFrame.LookVector)>.8
                     and self:ClearAhead(direction.Unit,math.min(distance,Config.DashSpeed*Config.DashSeconds))
                 self.openSince=open and (self.openSince or now) or nil

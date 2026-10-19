@@ -9,9 +9,16 @@ local Loot=require(systems.LairLoot)
 local Monster=require(systems.LairMonster)
 local Expedition=require(systems.LairExpedition)
 local Traps=require(systems.LairTraps)
+local Servants=require(systems.LairServants)
 local scene=workspace:WaitForChild("SafeBaseScene"):WaitForChild("TreasureLair")
 local keeper=Monster.new(scene,function(player)Loot.ClearCarried(player)end)
-local traps=Traps.new(scene,function() keeper:GeometryChanged() end,keeper)
+local servants
+local function geometryChanged()
+    keeper:GeometryChanged()
+    -- Traps/vaults initialize before Loot and the servants are activated.
+    if servants then servants:GeometryChanged() end
+end
+local traps=Traps.new(scene,geometryChanged,keeper)
 local vaults=scene.VaultDoors:GetChildren()
 local vaultTweens={}
 local function resetVaults()
@@ -24,7 +31,7 @@ local function resetVaults()
         door.CanCollide=true;door:SetAttribute("Open",false);door.Unlock.Enabled=true
         vault.Signal.Color=vault.Signal:GetAttribute("RestColor")
     end
-    keeper:GeometryChanged()
+    geometryChanged()
 end
 local function openVault(player,vault)
     local door=vault.Door
@@ -44,7 +51,7 @@ local function openVault(player,vault)
     local opening=TweenService:Create(door,TweenInfo.new(.8,Enum.EasingStyle.Quad,Enum.EasingDirection.InOut),{CFrame=door:GetAttribute("OpenCFrame")})
     local warning=TweenService:Create(vault.Signal,TweenInfo.new(.35,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut,3,true),{Color=Color3.fromRGB(255,93,50)})
     vaultTweens[vault]={opening,warning};opening:Play();warning:Play()
-    keeper:GeometryChanged()
+    geometryChanged()
     keeper:OnTheft(player,vault:GetAttribute("Suspicion"),root.Position)
     ReplicatedStorage.GameRemotes.Notify:FireClient(player,"Замок открыт. Хозяин насторожился!",Color3.fromRGB(255,193,100))
     return true
@@ -52,6 +59,9 @@ end
 for _,vault in ipairs(vaults) do vault.Door.Unlock.Triggered:Connect(function(player)openVault(player,vault)end) end
 resetVaults()
 Loot.Start(scene,function(player,risk,position) keeper:OnTheft(player,risk,position) end)
+servants=Servants.new(scene,keeper,Loot.Slow)
+traps.servantRoots={}
+for _,actor in servants.actors do table.insert(traps.servantRoots,actor.root) end
 keeper:Reset()
 keeper:Start()
 
@@ -74,6 +84,7 @@ local expedition=Expedition.new(scene,function()
     traps:Reset()
     resetVaults()
     Loot.Reset()
+    servants:Reset()
     keeper:Reset()
     if hatchTween then hatchTween:Cancel();hatchTween=nil end
     hatch.CFrame=hatch:GetAttribute("ClosedCFrame")
@@ -120,6 +131,7 @@ while scene.Parent do
         end
     end
     Loot.Step(players,os.clock(),keeper)
+    servants:Step(players,os.clock())
     expedition:Step(players,os.clock())
     traps:Step(players,os.clock())
 end

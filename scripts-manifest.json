@@ -40,6 +40,11 @@
     "class": "ModuleScript"
   },
   {
+    "instance": "ServerScriptService.GameSystems.LairServants",
+    "file": "src/ServerScriptService/GameSystems/LairServants.luau",
+    "class": "ModuleScript"
+  },
+  {
     "instance": "ServerScriptService.GameSystems.LairMonster",
     "file": "src/ServerScriptService/GameSystems/LairMonster.luau",
     "class": "ModuleScript"

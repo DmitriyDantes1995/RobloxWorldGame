@@ -244,104 +244,106 @@ local function showNotification(text, color, duration)
 end
 
 -- === SHOP UI ===
-local shopGui = Instance.new("Frame")
-shopGui.Name = "ShopUI"
-shopGui.Size = UDim2.new(0, 320, 0, 240)
-shopGui.Position = UDim2.new(0.5, -160, 0.5, -120)
-shopGui.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-shopGui.BackgroundTransparency = 0.05
-shopGui.BorderSizePixel = 0
-shopGui.Visible = false
-shopGui.Parent = gui
-
-local shopCorner = Instance.new("UICorner")
-shopCorner.CornerRadius = UDim.new(0, 12)
-shopCorner.Parent = shopGui
-
-local shopStroke = Instance.new("UIStroke")
-shopStroke.Color = Color3.fromRGB(80, 120, 200)
-shopStroke.Thickness = 3
-shopStroke.Parent = shopGui
-
-local shopTitle = Instance.new("TextLabel")
-shopTitle.Name = "ShopTitle"
-shopTitle.Size = UDim2.new(1, 0, 0, 32)
-shopTitle.BackgroundTransparency = 1
-shopTitle.Text = "🛒 МАГАЗИН УЛУЧШЕНИЙ"
-shopTitle.TextColor3 = Color3.fromRGB(150, 200, 255)
-shopTitle.Font = Enum.Font.GothamBold
-shopTitle.TextSize = 18
-shopTitle.Parent = shopGui
-
--- Current level display
-local shopInfo = Instance.new("TextLabel")
-shopInfo.Name = "ShopInfo"
-shopInfo.Size = UDim2.new(1, -24, 0, 40)
-shopInfo.Position = UDim2.new(0, 12, 0, 40)
-shopInfo.BackgroundTransparency = 1
-shopInfo.Text = "Рюкзак: ур.0 | Вместимость: 10"
-shopInfo.TextColor3 = Color3.fromRGB(200, 200, 210)
-shopInfo.Font = Enum.Font.Gotham
-shopInfo.TextSize = 14
-shopInfo.Parent = shopGui
-
--- Upgrade cost label
-local shopCost = Instance.new("TextLabel")
-shopCost.Name = "ShopCost"
-shopCost.Size = UDim2.new(1, -24, 0, 24)
-shopCost.Position = UDim2.new(0, 12, 0, 88)
-shopCost.BackgroundTransparency = 1
-shopCost.Text = "Стоимость: 50 🪙"
-shopCost.TextColor3 = Color3.fromRGB(255, 200, 60)
-shopCost.Font = Enum.Font.GothamBold
-shopCost.TextSize = 16
-shopCost.Parent = shopGui
-
--- Upgrade benefit label
-local shopBenefit = Instance.new("TextLabel")
-shopBenefit.Name = "ShopBenefit"
-shopBenefit.Size = UDim2.new(1, -24, 0, 20)
-shopBenefit.Position = UDim2.new(0, 12, 0, 116)
-shopBenefit.BackgroundTransparency = 1
-shopBenefit.Text = "+5 к вместимости рюкзака"
-shopBenefit.TextColor3 = Color3.fromRGB(120, 220, 120)
-shopBenefit.Font = Enum.Font.Gotham
-shopBenefit.TextSize = 13
-shopBenefit.Parent = shopGui
-
--- Buy button
-local buyBtn = Instance.new("TextButton")
-buyBtn.Name = "BuyButton"
-buyBtn.Size = UDim2.new(0, 200, 0, 40)
-buyBtn.Position = UDim2.new(0.5, -100, 0, 150)
-buyBtn.BackgroundColor3 = Color3.fromRGB(50, 120, 200)
-buyBtn.BorderSizePixel = 0
-buyBtn.Text = "Купить"
-buyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-buyBtn.Font = Enum.Font.GothamBold
-buyBtn.TextSize = 16
-buyBtn.Parent = shopGui
-
-local buyCorner = Instance.new("UICorner")
-buyCorner.CornerRadius = UDim.new(0, 8)
-buyCorner.Parent = buyBtn
-
--- Close button
-local closeBtn = Instance.new("TextButton")
-closeBtn.Name = "CloseButton"
-closeBtn.Size = UDim2.new(0, 30, 0, 30)
-closeBtn.Position = UDim2.new(1, -38, 0, 4)
-closeBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
-closeBtn.BorderSizePixel = 0
-closeBtn.Text = "X"
-closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 16
-closeBtn.Parent = shopGui
-
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 6)
-closeCorner.Parent = closeBtn
+local function shopObject(class,name,parent,properties)
+    local object=Instance.new(class)
+    object.Name=name
+    for key,value in properties do object[key]=value end
+    object.Parent=parent
+    return object
+end
+local function round(object,radius)
+    shopObject("UICorner","Corner",object,{CornerRadius=UDim.new(0,radius)})
+end
+local ink=Color3.fromRGB(237,231,211)
+local gold=Color3.fromRGB(234,190,95)
+local shopGui=shopObject("Frame","ShopUI",gui,{
+    AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=UDim2.new(1,-24,1,-24),
+    BackgroundColor3=Color3.fromRGB(27,35,39),BorderSizePixel=0,Visible=false,ZIndex=5})
+round(shopGui,14)
+shopObject("UISizeConstraint","SizeLimit",shopGui,{MaxSize=Vector2.new(680,660)})
+shopObject("UIStroke","Border",shopGui,{Color=Color3.fromRGB(128,105,62),Thickness=2})
+local shopTitle=shopObject("TextLabel","ShopTitle",shopGui,{
+    Position=UDim2.fromOffset(20,10),Size=UDim2.new(1,-84,0,28),BackgroundTransparency=1,
+    Text="ЛАВКА ИСКАТЕЛЯ",TextColor3=gold,Font=Enum.Font.GothamBold,TextSize=20,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=6})
+local shopCoins=shopObject("TextLabel","ShopCoins",shopGui,{
+    Position=UDim2.fromOffset(20,41),Size=UDim2.new(1,-40,0,25),BackgroundTransparency=1,
+    Text="",TextColor3=ink,Font=Enum.Font.GothamMedium,TextSize=15,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=6})
+local closeBtn=shopObject("TextButton","CloseButton",shopGui,{
+    Position=UDim2.new(1,-54,0,10),Size=UDim2.fromOffset(44,44),BackgroundColor3=Color3.fromRGB(68,76,76),
+    Text="×",TextColor3=ink,Font=Enum.Font.GothamBold,TextSize=26,BorderSizePixel=0,ZIndex=6})
+round(closeBtn,8)
+local shopScroll=shopObject("ScrollingFrame","Products",shopGui,{
+    Position=UDim2.fromOffset(12,76),Size=UDim2.new(1,-24,1,-88),BackgroundTransparency=1,BorderSizePixel=0,
+    ScrollBarThickness=5,ScrollBarImageColor3=gold,CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=6})
+shopObject("UIPadding","Padding",shopScroll,{PaddingLeft=UDim.new(0,4),PaddingRight=UDim.new(0,10),PaddingBottom=UDim.new(0,8)})
+local grid=shopObject("UIGridLayout","Grid",shopScroll,{CellPadding=UDim2.fromOffset(12,12),SortOrder=Enum.SortOrder.LayoutOrder})
+local products={
+    {Kind="Key",Name="Ключ сокровищницы",Copy="Открой закрытый тайник",Color=gold},
+    {Kind="Backpack",Name="Походный рюкзак",Copy="Больше добычи за вылазку",Color=Color3.fromRGB(223,158,99)},
+    {Kind="Sprint",Name="Суперкроссовки",Copy="Рывок скорости · Shift",Color=Color3.fromRGB(99,221,189)},
+    {Kind="Jump",Name="Пружинные ботинки",Copy="Выше прыжок · новые пути",Color=Color3.fromRGB(147,185,255)},
+}
+local cards={}
+local shopState
+local pendingUntil=0
+local refreshShop
+local previews=ReplicatedStorage:WaitForChild("ShopPreviews")
+for index,product in ipairs(products) do
+    local card=shopObject("Frame",product.Kind,shopScroll,{LayoutOrder=index,BackgroundColor3=Color3.fromRGB(40,49,52),BorderSizePixel=0,ZIndex=6})
+    round(card,10)
+    local view=shopObject("ViewportFrame","Preview",card,{
+        Position=UDim2.fromOffset(10,10),Size=UDim2.new(1,-20,0,122),BackgroundColor3=Color3.fromRGB(21,29,34),
+        BorderSizePixel=0,Ambient=Color3.fromRGB(168,176,191),LightColor=Color3.fromRGB(255,235,204),
+        LightDirection=Vector3.new(-1,-1,-1),ZIndex=7})
+    round(view,8)
+    shopObject("UIStroke","PreviewBorder",view,{Color=product.Color,Thickness=1,Transparency=.45})
+    local world=shopObject("WorldModel","Merchandise",view,{})
+    local model=previews:WaitForChild(product.Kind):Clone()
+    for _,object in model:GetDescendants() do
+        if object:IsA("BasePart") then
+            object.Anchored=true;object.CanCollide=false;object.CanTouch=false;object.CanQuery=false
+        elseif object:IsA("LuaSourceContainer") then object:Destroy() end
+    end
+    model.Parent=world
+    local center,size=model:GetBoundingBox()
+    local camera=shopObject("Camera","Camera",view,{FieldOfView=35})
+    view.CurrentCamera=camera
+    local radius=size.Magnitude*.5
+    local distance=radius/math.sin(math.rad(camera.FieldOfView*.5))*1.12
+    camera.CFrame=CFrame.lookAt(center.Position+Vector3.new(.7,.45,1).Unit*distance,center.Position)
+    local name=shopObject("TextLabel","ProductName",card,{
+        Position=UDim2.fromOffset(12,139),Size=UDim2.new(1,-24,0,36),BackgroundTransparency=1,
+        Text=product.Name,TextColor3=ink,TextWrapped=true,TextXAlignment=Enum.TextXAlignment.Left,
+        Font=Enum.Font.GothamBold,TextSize=16,ZIndex=7})
+    local copy=shopObject("TextLabel","Description",card,{
+        Position=UDim2.fromOffset(12,177),Size=UDim2.new(1,-24,0,32),BackgroundTransparency=1,
+        Text=product.Copy,TextColor3=Color3.fromRGB(177,191,191),TextWrapped=true,
+        TextXAlignment=Enum.TextXAlignment.Left,Font=Enum.Font.Gotham,TextSize=12,ZIndex=7})
+    local status=shopObject("TextLabel","Status",card,{
+        Position=UDim2.fromOffset(12,211),Size=UDim2.new(1,-24,0,25),BackgroundTransparency=1,
+        Text="",TextColor3=product.Color,TextXAlignment=Enum.TextXAlignment.Left,Font=Enum.Font.GothamMedium,TextSize=13,ZIndex=7})
+    local button=shopObject("TextButton","Buy",card,{
+        Position=UDim2.fromOffset(10,241),Size=UDim2.new(1,-20,0,46),BackgroundColor3=Color3.fromRGB(74,123,105),
+        Text="",TextColor3=ink,Font=Enum.Font.GothamBold,TextSize=14,BorderSizePixel=0,ZIndex=7})
+    round(button,7)
+    cards[product.Kind]={Button=button,Status=status}
+    button.Activated:Connect(function()
+        if not button.Active or os.clock()<pendingUntil then return end
+        -- One intentional purchase at a time, including repeatable keys.
+        pendingUntil=os.clock()+1
+        refreshShop()
+        buyUpgradeEvent:FireServer(product.Kind)
+        task.delay(1,function()refreshShop()end)
+    end)
+end
+local function layoutShop()
+    local width=shopScroll.AbsoluteSize.X-14
+    local columns=width>=480 and 2 or 1
+    grid.CellSize=UDim2.new(0,math.floor((width-(columns-1)*12)/columns),0,298)
+    shopTitle.TextSize=shopGui.AbsoluteSize.X<400 and 16 or 20
+end
+shopScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(layoutShop)
+layoutShop()
 
 -- Reuse the inventory controls; keep touch targets above the movement controls.
 if UserInputService.TouchEnabled then
@@ -376,40 +378,7 @@ if UserInputService.TouchEnabled then
 	walkButton.TextWrapped = true
 	sprintButton.Position=UDim2.fromOffset(6,171);sprintButton.Size=UDim2.fromOffset(118,44)
 	cannonLabel.Position=UDim2.fromOffset(128,171);cannonLabel.Size=UDim2.fromOffset(116,44)
-	buyBtn.Size = UDim2.fromOffset(200, 46)
-	closeBtn.Size = UDim2.fromOffset(44, 44)
-	closeBtn.Position = UDim2.new(1, -48, 0, 2)
-	shopTitle.Size = UDim2.new(1, -50, 0, 32)
-	shopTitle.TextSize = 14
-end
 
--- Player coins label (for shop reference)
-local shopCoins = Instance.new("TextLabel")
-shopCoins.Name = "ShopCoins"
-shopCoins.Size = UDim2.new(1, -24, 0, 20)
-shopCoins.Position = UDim2.new(0, 12, 0, 200)
-shopCoins.BackgroundTransparency = 1
-shopCoins.Text = "У вас: 0 🪙"
-shopCoins.TextColor3 = Color3.fromRGB(200, 200, 210)
-shopCoins.Font = Enum.Font.Gotham
-shopCoins.TextSize = 13
-shopCoins.Parent = shopGui
-
--- Extend the same terminal panel; no separate shop or screen.
-shopGui.Size=UDim2.fromOffset(320,300);shopGui.Position=UDim2.new(.5,-160,.5,-150)
-shopInfo.Position=UDim2.fromOffset(12,36);shopInfo.Size=UDim2.new(1,-24,0,28)
-shopCost.Position=UDim2.fromOffset(12,65);shopBenefit.Position=UDim2.fromOffset(12,90)
-buyBtn.Position=UDim2.new(.5,-100,0,112);buyBtn.Size=UDim2.fromOffset(200,44)
-shopCoins.Position=UDim2.fromOffset(12,272)
-local abilityButtons={}
-for index,kind in {"Sprint","Jump"} do
-    local button=Instance.new("TextButton");button.Name="Buy"..kind
-    button.Size=UDim2.fromOffset(296,44);button.Position=UDim2.fromOffset(12,160+(index-1)*52)
-    button.BackgroundColor3=Color3.fromRGB(48,85,105);button.TextColor3=Color3.fromRGB(170,240,235)
-    button.Font=Enum.Font.GothamBold;button.TextSize=13;button.TextWrapped=true;button.BorderSizePixel=0;button.Parent=shopGui
-    local corner=Instance.new("UICorner");corner.CornerRadius=UDim.new(0,6);corner.Parent=button
-    button.Activated:Connect(function()if button.Active then buyUpgradeEvent:FireServer(kind) end end)
-    abilityButtons[kind]=button
 end
 
 -- === UPDATE FUNCTIONS ===
@@ -460,57 +429,41 @@ updateHUD = function()
 	end
 end
 
-local function updateShopUI(level, cost, currentMax, upgradeAmount, prices)
-	shopInfo.Text = string.format("Рюкзак: ур.%d | Вместимость: %d", level, currentMax)
-	shopCost.Text = string.format("Стоимость: %d 🪙", cost)
-	shopBenefit.Text = string.format("+%d к вместимости рюкзака", upgradeAmount)
-	
-	local coins = player:GetAttribute("Coins") or 0
-	for kind,button in abilityButtons do
-		local owned=player:GetAttribute(kind.."Unlocked")==true
-		local price=prices[kind]
-		button.Text=(kind=="Sprint" and "Суперкроссовки" or "Пружинные ботинки")..(owned and " · Куплено" or " · "..price.." монет")
-		button.Active=not owned and coins>=price;button.AutoButtonColor=button.Active
-		button.TextTransparency=owned and .25 or 0
-	end
-	shopCoins.Text = "У вас: " .. coins .. " 🪙"
-	
-	if coins >= cost then
-		buyBtn.BackgroundColor3 = Color3.fromRGB(50, 160, 80)
-		buyBtn.Text = "Купить"
-		buyBtn.Active = true
-		buyBtn.AutoButtonColor = true
-	else
-		buyBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-		buyBtn.Text = "Недостаточно монет"
-		buyBtn.Active = false
-		buyBtn.AutoButtonColor = false
-	end
+refreshShop=function()
+    if not shopState then return end
+    local coins=player:GetAttribute("Coins") or 0
+    local level=player:GetAttribute("BackpackLevel") or 0
+    shopCoins.Text=string.format("Банк: %d монет",coins)
+    for _,product in ipairs(products) do
+        local kind=product.Kind
+        local card=cards[kind]
+        local owned=(kind=="Sprint" or kind=="Jump") and player:GetAttribute(kind.."Unlocked")==true
+        local price=kind=="Backpack" and shopState.Cost or shopState.Prices[kind]
+        local pending=os.clock()<pendingUntil
+        local enabled=not owned and not pending and coins>=price and player:GetAttribute("ProgressLoaded")==true
+        card.Status.Text=kind=="Key" and string.format("В наличии: %d",player:GetAttribute("Keys") or 0)
+            or kind=="Backpack" and string.format("Уровень %d · +%d места",level,shopState.Amount)
+            or owned and "Приобретено навсегда" or "Постоянное улучшение"
+        card.Button.Text=owned and "Приобретено" or pending and "Покупка…"
+            or coins<price and string.format("Нужно %d монет",price) or string.format("Купить · %d монет",price)
+        card.Button.Active=enabled
+        card.Button.AutoButtonColor=enabled
+        card.Button.BackgroundColor3=enabled and Color3.fromRGB(64,123,101) or Color3.fromRGB(60,68,70)
+        card.Button.TextColor3=owned and Color3.fromRGB(136,216,180) or enabled and ink or Color3.fromRGB(164,172,173)
+    end
 end
 
--- === EVENTS ===
-local shopState
+-- Attributes update balances and ownership immediately; prices come only from the server.
 player.AttributeChanged:Connect(function()
     updateHUD()
-    if shopGui.Visible and shopState then updateShopUI(table.unpack(shopState)) end
+    refreshShop()
 end)
--- OpenShop from server
-openShopEvent.OnClientEvent:Connect(function(level, cost, currentMax, upgradeAmount, prices)
-	shopState = {level, cost, currentMax, upgradeAmount, prices}
-	updateShopUI(table.unpack(shopState))
-	shopGui.Visible = true
+openShopEvent.OnClientEvent:Connect(function(level,cost,currentMax,upgradeAmount,prices)
+    shopState={Level=level,Cost=cost,Capacity=currentMax,Amount=upgradeAmount,Prices=prices}
+    refreshShop()
+    shopGui.Visible=true
 end)
-
--- Buy button
-buyBtn.Activated:Connect(function()
-	if not buyBtn.Active then return end
-	buyUpgradeEvent:FireServer()
-end)
-
--- Close button
-closeBtn.Activated:Connect(function()
-	shopGui.Visible = false
-end)
+closeBtn.Activated:Connect(function()shopGui.Visible=false end)
 
 -- Notify from server
 notifyEvent.OnClientEvent:Connect(function(text, color, duration)

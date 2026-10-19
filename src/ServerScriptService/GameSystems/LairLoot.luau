@@ -56,7 +56,7 @@ local function disposeVisual(data)
 end
 
 local function queryParams(player)
-    local excludes={scene.Treasures,scene.Effects,scene.Keeper}
+    local excludes={scene.Treasures,scene.Effects,scene.Keeper,scene.Servants}
     if player and player.Character then table.insert(excludes,player.Character) end
     local ray=RaycastParams.new();ray.FilterType=Enum.RaycastFilterType.Exclude
     local rayExcludes=table.clone(excludes)
@@ -105,11 +105,15 @@ updateCarrier=function(player)
         if state.sprintTrail then state.sprintTrail:Destroy();state.sprintTrail=nil end
         if state.sprintAttachments then for _,a in state.sprintAttachments do a:Destroy() end end
         state.sprintAttachments=nil;state.sprintUntil=nil;state.wasGrounded=false
+        state.slowUntil=nil;state.slowReadyAt=nil
     end
     local idol=(player:GetAttribute("Artifacts_Idol") or 0)>0
     if root then
-        local sprinting=os.clock()<(state.sprintUntil or 0)
-        player.Character.Humanoid.WalkSpeed=(sprinting and Catalog.RunSpeed*Config.SprintMultiplier or state.walking and Catalog.WalkSpeed or Catalog.RunSpeed)*(idol and Catalog.IdolSpeedMultiplier or 1)
+        local now=os.clock()
+        if Safety.InBase(scene,root.Position) then state.slowUntil=nil;state.slowReadyAt=nil end
+        local sprinting=now<(state.sprintUntil or 0)
+        local slowed=now<(state.slowUntil or 0)
+        player.Character.Humanoid.WalkSpeed=(sprinting and Catalog.RunSpeed*Config.SprintMultiplier or state.walking and Catalog.WalkSpeed or Catalog.RunSpeed)*(idol and Catalog.IdolSpeedMultiplier or 1)*(slowed and .75 or 1)
         player.Character.Humanoid.UseJumpPower=false
         player.Character.Humanoid.JumpHeight=player:GetAttribute("JumpUnlocked") and Config.JumpHeight or Config.BaseJumpHeight
         player:SetAttribute("Sprinting",sprinting)
@@ -124,6 +128,18 @@ updateCarrier=function(player)
     end
     if not state.visuals.Rare then state.nextFlash=nil;state.flashed=false end
     return state,root
+end
+
+function Loot.Slow(player)
+    local state,root=updateCarrier(player)
+    local now=os.clock()
+    if not root or not Economy.IsReady(player) or Safety.InBase(scene,root.Position)
+        or Safety.InHide(scene,root.Position) or not Safety.InLair(scene,root.Position)
+        or now<(state.slowReadyAt or 0) then return false end
+    state.slowUntil=now+1.4;state.slowReadyAt=now+8
+    updateCarrier(player)
+    notify:FireClient(player,"Слуга схватил за ботинок!",Color3.fromRGB(255,180,100),1.4)
+    return true
 end
 
 function Loot.Sprint(player)
@@ -161,7 +177,7 @@ function Loot.ClearCarried(player)
     end
     local state=carriers[player]
     if state then
-        state.sprintUntil=nil
+        state.sprintUntil=nil;state.slowUntil=nil;state.slowReadyAt=nil
         for _,visual in pairs(state.visuals) do disposeVisual(visual) end
         state.visuals={};state.nextFlash=nil;state.flashed=false;state.lastTrail=nil
         updateCarrier(player)
@@ -301,6 +317,10 @@ local function chooseTypes()
 end
 
 function Loot.Reset()
+    for player,state in carriers do
+        state.slowUntil=nil;state.slowReadyAt=nil
+        updateCarrier(player)
+    end
     if resetCannon then resetCannon() end
     for _,trace in trails do trace.part:Destroy() end
     for _,effect in scene.Effects:GetChildren() do effect:Destroy() end
@@ -463,7 +483,7 @@ function Loot.FireCannon(player,direction,keeper)
     direction=direction.Unit
     local origin=cannon.tool.Handle.Muzzle.WorldPosition
     local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude
-    local excludes={scene.Effects,scene.Treasures,scene.ExpeditionItems,cannon.tool}
+    local excludes={scene.Effects,scene.Treasures,scene.ExpeditionItems,cannon.tool,scene.Servants}
     for _,p in Players:GetPlayers() do if p.Character then table.insert(excludes,p.Character) end end
     params.FilterDescendantsInstances=excludes;params.RespectCanCollide=true
     local clipped=workspace:Raycast(player.Character.HumanoidRootPart.Position,origin-player.Character.HumanoidRootPart.Position,params)
