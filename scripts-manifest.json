@@ -60,6 +60,11 @@
     "class": "ModuleScript"
   },
   {
+    "instance": "ServerScriptService.GameSystems.RelicEscape",
+    "file": "src/ServerScriptService/GameSystems/RelicEscape.luau",
+    "class": "ModuleScript"
+  },
+  {
     "instance": "StarterPlayer.StarterPlayerScripts.TreasureHUD",
     "file": "src/StarterPlayer/StarterPlayerScripts/TreasureHUD.luau",
     "class": "LocalScript"

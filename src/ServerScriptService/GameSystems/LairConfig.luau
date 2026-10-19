@@ -55,6 +55,16 @@ local defaults = {
     CannonSpeed = 105,
     CannonRange = 115,
     CannonKnockback = 28,
+    RelicScenario = 0, -- 0: random, 1: upper detour, 2: underground, 3: junctions
+    RelicWarningSeconds = 1.5,
+    RelicFirstBlockSeconds = 28,
+    RelicBlockSeconds = 10,
+    RelicOpenSeconds = 6,
+    RelicFloorSeconds = 28,
+    RelicMemorySeconds = 24,
+    RelicSearchSeconds = 24,
+    RelicLookSeconds = 5,
+    RelicTargetPriority = 18,
 }
 
 -- Numeric attributes are editable in Studio and take effect without restarting.

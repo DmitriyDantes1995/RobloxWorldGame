@@ -353,13 +353,14 @@ if UserInputService.TouchEnabled then
 	title.TextScaled = true
 	for index, kind in ipairs(Catalog.Order) do
 		local row = itemRows[kind]
-		row.Button.Size = UDim2.fromOffset(58, 46)
-		row.Button.Position = UDim2.fromOffset(6 + (index - 1) * 60, 28)
+		row.Button.Size = UDim2.fromOffset(46, 46)
+		row.Button.Position = UDim2.fromOffset(6 + (index - 1) * 48, 28)
 		row.Button.Description.Visible = false
 		row.Name.Size = UDim2.new(1, -2, 0, 23)
 		row.Name.Position = UDim2.fromOffset(1, 3)
 		row.Name.TextXAlignment = Enum.TextXAlignment.Center
-		row.Name.TextSize = 11
+		row.Name.TextSize = 10
+		row.Name.TextScaled = true
 		row.Count.Size = UDim2.new(1, 0, 0, 17)
 		row.Count.Position = UDim2.fromOffset(0, 27)
 		row.Count.TextXAlignment = Enum.TextXAlignment.Center
@@ -379,6 +380,12 @@ if UserInputService.TouchEnabled then
 	sprintButton.Position=UDim2.fromOffset(6,171);sprintButton.Size=UDim2.fromOffset(118,44)
 	cannonLabel.Position=UDim2.fromOffset(128,171);cannonLabel.Size=UDim2.fromOffset(116,44)
 
+else
+	local extra = (#Catalog.Order - 4) * 30
+	hud.Size += UDim2.fromOffset(0, extra)
+	for _,control in {totalsLabel, invBarBg, invLabel, dropButton, walkButton, sprintButton, cannonLabel} do
+		control.Position += UDim2.fromOffset(0, extra)
+	end
 end
 
 -- === UPDATE FUNCTIONS ===

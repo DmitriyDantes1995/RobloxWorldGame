@@ -58,12 +58,14 @@ end
 
 function Traps:Reset()
     self.active=false
+    self.relicWalls={};self.relicFloors=false
     for _,floor in ipairs(self.floors) do
         if floor.animation then floor.animation:Cancel();floor.animation=nil end
         floor.slab.CFrame=floor.slab:GetAttribute("RestCFrame")
         floor.slab.Transparency=0;floor.slab.CanCollide=true;floor.slab.CanQuery=true
         for _,crack in ipairs(floor.cracks) do crack.Transparency=1 end
         state(floor,"Ready")
+        if floor.model:FindFirstChild("Navigation") then floor.model.Navigation.Cost.Label="" end
         floor.keeperTrapped=false
     end
     for _,wall in ipairs(self.walls) do
@@ -77,6 +79,38 @@ function Traps:Reset()
         state(wall,"Open")
     end
     self.changed()
+end
+
+-- The escape owns requests, while the existing trap state machines own movement.
+function Traps:SetRelicWalls(requests)
+    for _,wall in self.walls do
+        local request=requests[wall.model.Name]
+        if request then
+            self.relicWalls[wall.model.Name]=request
+            if request.close and (wall.state=="Open" or wall.state=="Cooldown" or wall.state=="Warning") then
+                wall.released=false
+                state(wall,"Warning",os.clock(),Config.RelicWarningSeconds)
+            elseif request.close and wall.state=="Closing" then
+                self:OpenWall(wall,os.clock())
+            elseif not request.close and (wall.state=="Closed" or wall.state=="Warning" or wall.state=="Closing") then
+                self:OpenWall(wall,os.clock())
+            end
+        end
+    end
+end
+
+function Traps:RelicWallsOpen(names)
+    for _,wall in self.walls do
+        if names[wall.model.Name] and wall.state~="Open" and wall.state~="Cooldown" then return false end
+    end
+    return true
+end
+
+function Traps:RelicWallsClosed(names)
+    for _,wall in self.walls do
+        if names[wall.model.Name] and wall.state~="Closed" then return false end
+    end
+    return true
 end
 
 function Traps:OpenWall(wall,now)
@@ -108,42 +142,51 @@ function Traps:Step(players,now)
         local p=floor.volume.CFrame:PointToObjectSpace(keeper.Position)
         local inside=math.abs(p.X)<floor.volume.Size.X/2 and math.abs(p.Z)<floor.volume.Size.Z/2
         if not inside then floor.keeperTrapped=false end
-        if floor.state=="Open" and inside and keeper.Position.Y<floor.slab:GetAttribute("RestCFrame").Position.Y+4 and not floor.keeperTrapped then
+        local escapeOnly=floor.model:GetAttribute("EscapeOnly")==true
+        local enabled=not escapeOnly or self.relicFloors
+        if not escapeOnly and floor.state=="Open" and inside and keeper.Position.Y<floor.slab:GetAttribute("RestCFrame").Position.Y+4 and not floor.keeperTrapped then
             floor.keeperTrapped=true
             self.keeper:Stun(Config.TrapStunSeconds,"Pit",{floor.model.EscapeStart.Position,floor.model.EscapeEnd.Position})
         end
-        if floor.state=="Ready" then
+        if floor.state=="Ready" and enabled then
             for _,root in ipairs(roots) do
                 if standingOn(floor.slab,root) then
-                    state(floor,"Warning",now,FLOOR_WARNING)
+                    state(floor,"Warning",now,escapeOnly and Config.RelicWarningSeconds or FLOOR_WARNING)
                     for _,crack in ipairs(floor.cracks) do crack.Transparency=0 end
                     break
                 end
             end
-        elseif floor.state=="Warning" and now>=floor.untilTime then
+        elseif floor.state=="Warning" and now>=floor.untilTime
+            and (not escapeOnly or not standingOn(floor.slab,keeper,8)) then
             floor.slab.CanCollide=false;floor.slab.CanQuery=false
-            floor.animation=tween(floor.slab,.35,{CFrame=floor.slab:GetAttribute("RestCFrame")-Vector3.new(0,7.5,0),Transparency=.8})
+            if escapeOnly then floor.model.Navigation.Cost.Label="KeeperBoundary" end
+            local rest=floor.slab:GetAttribute("RestCFrame")
+            local fallen=escapeOnly and CFrame.new(rest.Position.X,-16.5,rest.Position.Z)*rest.Rotation or rest-Vector3.new(0,7.5,0)
+            floor.animation=tween(floor.slab,.35,{CFrame=fallen,Transparency=.8})
             for _,crack in ipairs(floor.cracks) do crack.Transparency=1 end
-            state(floor,"Open",now,FLOOR_OPEN)
+            state(floor,"Open",now,escapeOnly and Config.RelicFloorSeconds or FLOOR_OPEN)
             self.changed()
         elseif floor.state=="Open" and now>=floor.untilTime and not occupied(floor.volume,actors) then
             if floor.animation then floor.animation:Cancel();floor.animation=nil end
             floor.slab.CFrame=floor.slab:GetAttribute("RestCFrame")
             floor.slab.Transparency=0;floor.slab.CanCollide=true;floor.slab.CanQuery=true
             state(floor,"Ready")
+            if escapeOnly then floor.model.Navigation.Cost.Label="" end
             self.changed()
         end
     end
 
     for _,wall in ipairs(self.walls) do
+        local request=self.relicWalls[wall.model.Name]
+        local escapeOnly=wall.model:GetAttribute("EscapeOnly")==true
         local pressed=false
         for _,root in ipairs(roots) do if standingOn(wall.plate,root) then pressed=true;break end end
         if not pressed then wall.released=true end
         if wall.state=="Open" then
-            if (pressed and wall.released) or (active and wall.nextAuto and now>=wall.nextAuto) then
+            if request and request.close or not request and not escapeOnly and ((pressed and wall.released) or (active and wall.nextAuto and now>=wall.nextAuto)) then
                 wall.released=false
                 wall.plate.CFrame=wall.plate:GetAttribute("RestCFrame")-Vector3.new(0,.2,0)
-                state(wall,"Warning",now,WALL_WARNING)
+                state(wall,"Warning",now,request and Config.RelicWarningSeconds or WALL_WARNING)
             end
         elseif wall.state=="Warning" then
             local color=math.floor(now*6)%2==0 and Color3.fromRGB(255,191,63) or Color3.fromRGB(255,90,45)
@@ -165,10 +208,10 @@ function Traps:Step(players,now)
             elseif now>=wall.untilTime then
                 wall.wall.CFrame=wall.wall:GetAttribute("ClosedCFrame")
                 wall.wall.CanCollide=true
-                state(wall,"Closed",now,WALL_HOLD)
+                state(wall,"Closed",now,request and request.hold or WALL_HOLD)
                 self.changed()
             end
-        elseif wall.state=="Closed" and now>=wall.untilTime then
+        elseif wall.state=="Closed" and now>=wall.untilTime and not (request and request.close) then
             self:OpenWall(wall,now)
         elseif wall.state=="Opening" and now>=wall.untilTime then
             wall.wall.CFrame=wall.wall:GetAttribute("OpenCFrame")

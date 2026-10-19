@@ -1,4 +1,3 @@
-
 local Players=game:GetService("Players")
 local ReplicatedStorage=game:GetService("ReplicatedStorage")
 local TweenService=game:GetService("TweenService")
@@ -10,6 +9,7 @@ local Monster=require(systems.LairMonster)
 local Expedition=require(systems.LairExpedition)
 local Traps=require(systems.LairTraps)
 local Servants=require(systems.LairServants)
+local RelicEscape=require(systems.RelicEscape)
 local scene=workspace:WaitForChild("SafeBaseScene"):WaitForChild("TreasureLair")
 local keeper=Monster.new(scene,function(player)Loot.ClearCarried(player)end)
 local servants
@@ -19,6 +19,7 @@ local function geometryChanged()
     if servants then servants:GeometryChanged() end
 end
 local traps=Traps.new(scene,geometryChanged,keeper)
+local escape=RelicEscape.new(scene,traps,keeper,Loot.GetRelicCarrier)
 local vaults=scene.VaultDoors:GetChildren()
 local vaultTweens={}
 local function resetVaults()
@@ -58,7 +59,8 @@ local function openVault(player,vault)
 end
 for _,vault in ipairs(vaults) do vault.Door.Unlock.Triggered:Connect(function(player)openVault(player,vault)end) end
 resetVaults()
-Loot.Start(scene,function(player,risk,position) keeper:OnTheft(player,risk,position) end)
+Loot.Start(scene,function(player,risk,position) keeper:OnTheft(player,risk,position) end,
+    function(player,position) escape:Start(player,position) end)
 servants=Servants.new(scene,keeper,Loot.Slow)
 traps.servantRoots={}
 for _,actor in servants.actors do table.insert(traps.servantRoots,actor.root) end
@@ -81,6 +83,7 @@ hatch.OpenHatch.Triggered:Connect(function(player)
 end)
 
 local expedition=Expedition.new(scene,function()
+    escape:Reset()
     traps:Reset()
     resetVaults()
     Loot.Reset()
@@ -133,5 +136,6 @@ while scene.Parent do
     Loot.Step(players,os.clock(),keeper)
     servants:Step(players,os.clock())
     expedition:Step(players,os.clock())
+    escape:Step(players,os.clock())
     traps:Step(players,os.clock())
 end

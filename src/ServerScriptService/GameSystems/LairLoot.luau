@@ -9,7 +9,7 @@ local Safety=require(script.Parent.LairSafety)
 local Loot={}
 local pool,active,carriers,trails={},{},{},{}
 local rng=Random.new()
-local scene,onTheft
+local scene,onTheft,onRelic
 local updateCarrier
 local cannon,projectile
 local resetCannon,returnCannon
@@ -78,9 +78,11 @@ local function attachVisual(player,state,kind,root)
     local item=Catalog.Items[kind]
     local model=ReplicatedStorage.ArtifactModels[item.Template]:Clone()
     model.Name="Carried"..kind
+    if kind=="Relic" then model:ScaleTo(.6) end
     local main=model.Artifact
     local offset=kind=="Idol" and CFrame.new(0,-.2,1.3)
         or kind=="Legendary" and CFrame.new(0,2.7,0)
+        or kind=="Relic" and CFrame.new(0,1.2,1.6)
         or CFrame.new(1.3,.65,0)
     model:PivotTo(root.CFrame*offset)
     for _,part in model:GetDescendants() do
@@ -113,14 +115,14 @@ updateCarrier=function(player)
         if Safety.InBase(scene,root.Position) then state.slowUntil=nil;state.slowReadyAt=nil end
         local sprinting=now<(state.sprintUntil or 0)
         local slowed=now<(state.slowUntil or 0)
-        player.Character.Humanoid.WalkSpeed=(sprinting and Catalog.RunSpeed*Config.SprintMultiplier or state.walking and Catalog.WalkSpeed or Catalog.RunSpeed)*(idol and Catalog.IdolSpeedMultiplier or 1)*(slowed and .75 or 1)
+        player.Character.Humanoid.WalkSpeed=(sprinting and Catalog.RunSpeed*Config.SprintMultiplier or state.walking and Catalog.WalkSpeed or Catalog.RunSpeed)*(idol and Catalog.IdolSpeedMultiplier or 1)*(slowed and .75 or 1)*((player:GetAttribute("Artifacts_Relic") or 0)>0 and Catalog.RelicSpeedMultiplier or 1)
         player.Character.Humanoid.UseJumpPower=false
         player.Character.Humanoid.JumpHeight=player:GetAttribute("JumpUnlocked") and Config.JumpHeight or Config.BaseJumpHeight
         player:SetAttribute("Sprinting",sprinting)
         if state.sprintTrail then state.sprintTrail.Enabled=sprinting end
     end
     player:SetAttribute("Walking",state.walking)
-    for _,kind in {"Idol","Rare","Legendary"} do
+    for _,kind in {"Idol","Rare","Legendary","Relic"} do
         local carried=root and (player:GetAttribute("Artifacts_"..kind) or 0)>0
         local visual=state.visuals[kind]
         if carried and not visual then visual=attachVisual(player,state,kind,root)
@@ -214,6 +216,7 @@ function Loot.Collect(player,model)
     notify:FireClient(player,string.format("%s · %d монет\n%s",item.Name,item.Price,hint),item.Color,4)
     -- Dropping and taking the same object again cannot farm suspicion.
     if firstTheft and onTheft then onTheft(player,item.Risk,entry.part.Position) end
+    if firstTheft and entry.rarity=="Relic" and onRelic then onRelic(player,entry.part.Position) end
     return true
 end
 
@@ -292,10 +295,10 @@ local function chooseTypes()
             continue
         end
         local weights=Catalog.SpawnWeights[entry.danger]
-        local sum=0;for _,kind in Catalog.Order do sum+=weights[kind] end
+        local sum=0;for _,kind in Catalog.SpawnOrder do sum+=weights[kind] end
         local draw=rng:NextNumber()*sum
-        local kind=Catalog.Order[#Catalog.Order]
-        for _,candidate in Catalog.Order do draw-=weights[candidate];if draw<0 then kind=candidate;break end end
+        local kind=Catalog.SpawnOrder[#Catalog.SpawnOrder]
+        for _,candidate in Catalog.SpawnOrder do draw-=weights[candidate];if draw<0 then kind=candidate;break end end
         types[i]=kind;counts[kind]+=1
     end
     -- Keep gems most common, reserving rarities for deeper authored slots.
@@ -513,9 +516,14 @@ function Loot.FireCannon(player,direction,keeper)
     return true
 end
 
-function Loot.Start(lair,callback)
+function Loot.GetRelicCarrier()
+    for _,entry in pool do if entry.rarity=="Relic" and entry.owner then return entry.owner end end
+    return nil
+end
+
+function Loot.Start(lair,callback,relicCallback)
     assert(not scene,"LairLoot already started")
-    scene=lair;onTheft=callback
+    scene=lair;onTheft=callback;onRelic=relicCallback
     local groups={}
     for _,point in scene.TreasurePoints:GetChildren() do
         local slot=point:GetAttribute("Slot")
@@ -531,6 +539,7 @@ function Loot.Start(lair,callback)
     for _,group in pairs(groups) do
         table.sort(group.points,function(a,b)return a.Name<b.Name end);table.insert(pool,group)
     end
+    table.insert(pool,{slot="MainRelic",points={scene.RelicEscape.RelicPoint},danger="Legendary",fixedKind="Relic",vault=scene.VaultDoors.CrownVault})
     local tier={Common=1,Rare=2,Legendary=3}
     table.sort(pool,function(a,b)return tier[a.danger]==tier[b.danger] and a.slot<b.slot or tier[a.danger]<tier[b.danger] end)
     startCannon()

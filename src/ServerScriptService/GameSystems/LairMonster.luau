@@ -30,6 +30,8 @@ function Monster.new(scene,onCaught)
 end
 
 function Monster:Reset()
+    self.relicRage=false;self.relicCarrier=nil;self.relicAnchor=nil;self.relicReaction=nil;self.relicSearchIndex=0
+    self.model:SetAttribute("RelicRage",false)
     table.clear(self.heat);table.clear(self.grace)
     self.target=nil;self.lastKnown=nil;self.lastSeen=nil;self.hiddenSince=nil;self.chaseStarted=nil
     self.investigationPosition=nil;self.investigationOwner=nil;self.lookUntil=nil
@@ -67,11 +69,12 @@ function Monster:SetState(state)
     local words={Sleeping="Z z z",Patrolling="Моё логово…",Suspicious="Кто здесь?",Awakening="КТО ТАМ?!",Chasing="ВЕРНИ!",Returning="Проверю хранилище…"}
     words.DashPreparing="БЕРЕГИСЬ!";words.Dashing="ПОПАЛСЯ!";words.Staggered="Ух!.."
     words.Stunned="Звёзды…";words.Recovering="Поднимаюсь…";words.Escaping="Не уйдёшь!"
-    local color=state=="Chasing" and Color3.fromRGB(255,104,113)
+    local color=self.relicRage and state~="Stunned" and state~="Recovering" and Color3.fromRGB(255,94,45)
+        or state=="Chasing" and Color3.fromRGB(255,104,113)
         or (state=="Awakening" or state=="DashPreparing") and Color3.fromRGB(255,150,65)
         or state=="Suspicious" and Color3.fromRGB(255,220,110) or Color3.fromRGB(167,225,255)
     self.model.EyeL.Color=color;self.model.EyeR.Color=color
-    self.root.Mood.Label.Text=words[state]
+    self.root.Mood.Label.Text=state=="RelicReaction" and "МОЯ ИГРУШКА!" or self.relicRage and state=="Suspicious" and "Где моя игрушка?.." or words[state]
     self:ResetPath()
 end
 
@@ -108,7 +111,32 @@ function Monster:ClearAhead(direction,distance)
     local excludes={self.model,self.scene.Treasures,self.scene.Effects}
     for _,p in Players:GetPlayers() do if p.Character then table.insert(excludes,p.Character) end end
     params.FilterDescendantsInstances=excludes;params.RespectCanCollide=true
-    return workspace:Blockcast(CFrame.new(self.root.Position),Vector3.new(5,9,5),direction*distance,params)==nil
+    if workspace:Blockcast(CFrame.new(self.root.Position),Vector3.new(5,9,5),direction*distance,params) then return false end
+    -- A dash must not launch the keeper into the new deep player shafts.
+    if self.scene:GetAttribute("RelicEscapeScenario")==2 then
+        for d=3,distance,3 do
+            if not workspace:Raycast(self.root.Position+direction*d,Vector3.new(0,-10,0),params) then return false end
+        end
+    end
+    return true
+end
+
+function Monster:BeginRelicHunt(position)
+    if self.relicRage then return end
+    self.relicRage=true;self.relicAnchor=position;self.relicSearchIndex=0;self.relicReaction=true
+    self.model:SetAttribute("RelicRage",true)
+    -- The alarm gives a historical theft location, never the carrier's live position.
+    if not self.lastKnown then self.lastKnown=position end
+end
+
+function Monster:ContinueRelicSearch()
+    local origin=self.lastKnown or self.investigationPosition or self.relicAnchor
+    local points=table.clone(self.patrol)
+    table.sort(points,function(a,b)return (a.Position-origin).Magnitude<(b.Position-origin).Magnitude end)
+    self.relicSearchIndex=(self.relicSearchIndex or 0)%math.min(4,#points)+1
+    self.investigationPosition=points[self.relicSearchIndex].Position
+    self.investigationOwner=nil;self.lookUntil=nil;self.target=nil
+    self:SetState("Suspicious")
 end
 
 function Monster:Stun(seconds,kind,escapeRoute,attacker,direction)
@@ -198,11 +226,14 @@ function Monster:OnEvidence(player,position,kind)
 end
 
 function Monster:Finish()
+    local remembered=self.lastKnown or self.investigationPosition or self.relicAnchor
     self.humanoid.AutoRotate=true;self.dashDirection=nil;self.openSince=nil
     if self.target then self.heat[self.target]=0 end
     self.target=nil;self.hiddenSince=nil;self.lastKnown=nil;self.targetSince=nil
     self.investigationPosition=nil;self.investigationOwner=nil;self.lookUntil=nil
-    self:SetState("Returning")
+    if self.relicRage then
+        self.investigationPosition=remembered;self:SetState("Suspicious")
+    else self:SetState("Returning") end
 end
 
 function Monster:Catch(player)
@@ -292,6 +323,7 @@ function Monster:VisibleTarget(exclude)
         local d=root and (root.Position-self.root.Position).Magnitude
         if root and d<=Config.DetectionDistance and self:Visible(root) then
             local score=d-math.min(self.heat[player] or 0,80)*Config.TargetHeatWeight
+                -(self.relicRage and player==self.relicCarrier and Config.RelicTargetPriority or 0)
             if not bestScore or score<bestScore then selected=player;selectedRoot=root;bestScore=score end
         end
     end
@@ -310,7 +342,8 @@ function Monster:SwitchTarget(now)
     local current=self:Eligible(self.target)
     local currentVisible=current and self:Visible(current)
     local currentScore=current and (current.Position-self.root.Position).Magnitude
-        -math.min(self.heat[self.target] or 0,80)*Config.TargetHeatWeight or math.huge
+        -math.min(self.heat[self.target] or 0,80)*Config.TargetHeatWeight
+        -(self.relicRage and self.target==self.relicCarrier and Config.RelicTargetPriority or 0) or math.huge
     local better=score+Config.TargetSwitchMargin<currentScore
     local share=now-self.targetSince>=Config.TargetFocusSeconds and score<=currentScore+Config.TargetSwitchMargin
     if currentVisible and not better and not share then return end
@@ -323,10 +356,20 @@ end
 
 function Monster:Step(dt)
     local now=os.clock()
+    if self.relicReaction and self.state~="Stunned" and self.state~="Recovering" and self.state~="Escaping" and self.state~="Dashing" then
+        self.relicReaction=nil;self:SetState("RelicReaction")
+    end
+    if self.relicRage and (self.state=="Sleeping" or self.state=="Returning" or self.state=="Patrolling") then
+        self:ContinueRelicSearch()
+    end
     for player,heat in pairs(self.heat) do
         self.heat[player]=heat>Config.SuspicionDecay*dt and heat-Config.SuspicionDecay*dt or nil
     end
-    if self.state=="Stunned" then
+    if self.state=="RelicReaction" then
+        self.humanoid.WalkSpeed=0;self.humanoid:MoveTo(self.root.Position)
+        if now-self.stateSince>=Config.AwakeningSeconds then self:ResumeHunt() end
+        return
+    elseif self.state=="Stunned" then
         self.humanoid.WalkSpeed=0
         if now>=self.stunUntil then self:SetState("Recovering") end
         return
@@ -366,14 +409,15 @@ function Monster:Step(dt)
     elseif self.state=="Suspicious" then
         self:FindTarget()
         if self.state~="Suspicious" then return end
-        if now-self.stateSince>=Config.InvestigationMaxSeconds or self.lookUntil and now>=self.lookUntil then
+        if now-self.stateSince>=(self.relicRage and Config.RelicSearchSeconds or Config.InvestigationMaxSeconds) or self.lookUntil and now>=self.lookUntil then
+            if self.relicRage then self:ContinueRelicSearch();return end
             self.investigationPosition=nil;self.investigationOwner=nil;self.lookUntil=nil
             self.investigationReadyAt=now+Config.InvestigationCooldown
             self:SetState("Returning")
         elseif self.lookUntil then
             self.humanoid:MoveTo(self.root.Position)
         elseif self:Move(self.investigationPosition,Config.InvestigationSpeed) then
-            self.lookUntil=now+Config.InvestigationLookSeconds
+            self.lookUntil=now+(self.relicRage and Config.RelicLookSeconds or Config.InvestigationLookSeconds)
         end
     elseif self.state=="Patrolling" then
         self:FindTarget()
@@ -400,7 +444,7 @@ function Monster:Step(dt)
             local visible=self:Visible(root)
             if visible then self.lastSeen=now;self.lastKnown=root.Position end
             local distance=(root.Position-self.root.Position).Magnitude
-            if now-self.lastSeen>Config.LoseSightSeconds then
+            if now-self.lastSeen>(self.relicRage and Config.RelicMemorySeconds or Config.LoseSightSeconds) then
                 self:ResumeHunt()
             elseif now-self.chaseStarted>Config.MaxChaseSeconds or distance>Config.MaxChaseDistance then self:Finish()
             elseif visible and distance<=Config.CatchRadius then self:Catch(self.target)
@@ -428,7 +472,7 @@ function Monster:Animate(dt)
     self.phase+=dt*(moving and speed*.72 or 1.5)
     local run=self.state=="Chasing" or self.state=="Dashing"
     local suspicious=self.state=="Suspicious"
-    local swing=moving and math.sin(self.phase)*math.rad(run and 82 or 38) or math.sin(self.phase)*.05
+    local swing=moving and math.sin(self.phase)*math.rad(run and (self.relicRage and 92 or 82) or 38) or math.sin(self.phase)*.05
     local raise=self.state=="Awakening" and math.rad(-105) or suspicious and -.3 or 0
     local pose={
         ["Left Hip"]=CFrame.Angles(swing,0,0),["Right Hip"]=CFrame.Angles(-swing,0,0),
@@ -438,6 +482,15 @@ function Monster:Animate(dt)
         RootJoint=CFrame.new(0,moving and math.abs(math.sin(self.phase))*.12 or math.sin(self.phase)*.06,0)
             *CFrame.Angles(run and -.12 or suspicious and -.06 or 0,0,moving and math.sin(self.phase)*.04 or 0),
     }
+    if self.relicRage then
+        pose.Neck*=CFrame.Angles(-.12,math.sin(self.phase*2)*.12,math.sin(self.phase*3)*.05)
+        pose.RootJoint*=CFrame.Angles(-.08,0,0)
+    end
+    if self.state=="RelicReaction" then
+        pose["Left Shoulder"]=CFrame.Angles(-1.8,0,-.35)
+        pose["Right Shoulder"]=CFrame.Angles(-1.8,0,.35)
+        pose.RootJoint=CFrame.new(0,math.abs(math.sin(self.phase*3))*.25,0)*CFrame.Angles(-.2,0,0)
+    end
     if self.state=="DashPreparing" then
         pose.RootJoint=CFrame.new(0,-1.3,0)*CFrame.Angles(-.45,0,0)
         pose["Left Hip"]=CFrame.Angles(-.8,0,-.1);pose["Right Hip"]=CFrame.Angles(.8,0,.1)
