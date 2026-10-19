@@ -1,0 +1,130 @@
+{
+  "project": "Place1.rbxl",
+  "finalMode": "Edit",
+  "implemented": {
+    "rooms": 6,
+    "treasurePoints": 15,
+    "tiers": {
+      "Common": 15,
+      "Rare": 100,
+      "Legendary": 300
+    },
+    "guardianStates": [
+      "Sleeping",
+      "Suspicious",
+      "Awakening",
+      "Chasing",
+      "Returning"
+    ],
+    "hidingPlaces": 2
+  },
+  "reused": [
+    "Coins",
+    "Wood/Stone/Artifacts_* player attributes",
+    "MaxInventory",
+    "existing scanner",
+    "existing Notify/CreatureWarning remotes",
+    "existing manual deposit and upgrade shop"
+  ],
+  "checks": {
+    "delivery": {
+      "stone": 1,
+      "common": 1,
+      "capacity": 10,
+      "wood": 2,
+      "coins": 215
+    },
+    "capture": {
+      "state": "Sleeping",
+      "coins": 215,
+      "common": 1,
+      "stone": 1,
+      "position": "0, 4, 17",
+      "wood": 2,
+      "rare": 0
+    },
+    "hideAndReturn": {
+      "beforeHide": "Awakening",
+      "afterHide": "Returning",
+      "afterReturn": "Sleeping",
+      "rare": 1,
+      "position": "-83, 4, 237",
+      "coins": 215
+    },
+    "walkToLairAndHide": {
+      "inHide": true,
+      "health": 100,
+      "position": "-82.69133758544922, 4.098105430603027, 239.40621948242188"
+    },
+    "baseEscape": {
+      "wood": 2,
+      "stone": 1,
+      "health": 100,
+      "common": 1,
+      "capacity": 10,
+      "beforeBase": "Chasing",
+      "afterBase": "Returning",
+      "coins": 330
+    },
+    "twoClientSharedPickup": {
+      "loserBefore": 100,
+      "itemRemoved": true,
+      "winnerAfter": 215,
+      "loserCommon": 1,
+      "winnerCommon": 1,
+      "pickup": {
+        "1": {
+          "coins": 100,
+          "name": "Player1",
+          "common": 1
+        },
+        "2": {
+          "coins": 200,
+          "name": "Player2",
+          "common": 2
+        }
+      },
+      "winner": "Player2",
+      "loserAfter": 100,
+      "winnerBefore": 200
+    },
+    "scanner": {
+      "visible": true,
+      "text": "📡 Обычный | 4 studs"
+    },
+    "syntaxErrors": []
+  },
+  "defaults": {
+    "AgentHeight": 13,
+    "LoseSightSeconds": 7,
+    "ReturnSpeed": 13,
+    "LootRespawnSeconds": 55,
+    "WakeBaseChance": 0.16,
+    "MaxChaseDistance": 240,
+    "PickupDistance": 7,
+    "WakeChancePerHeat": 0.009,
+    "CatchRadius": 6,
+    "RepathSeconds": 1,
+    "WakeMaxChance": 0.7,
+    "RecoverySeconds": 5,
+    "ThinkSeconds": 0.12,
+    "HideBreakSeconds": 2,
+    "ChaseSpeed": 18,
+    "MaxChaseSeconds": 42,
+    "WakeMinHeat": 28,
+    "SuspicionDecay": 0.25,
+    "AwakeningSeconds": 3,
+    "AgentRadius": 4
+  },
+  "limitations": [
+    "Prototype layout and balancing need a normal player playthrough.",
+    "Awakening/chase scenarios were forced through temporary runtime Config attributes for deterministic checks; Edit defaults restored automatically on Stop.",
+    "No persistence system was added; existing session-based progression remains."
+  ],
+  "manual": [
+    "Play a full expedition without teleportation, assess route readability, chance and chase speed.",
+    "Check warning/footstep sound volume on your device.",
+    "Try hiding alcoves and another expedition after the keeper returns."
+  ],
+  "review": "No actionable material introduced issues found."
+}

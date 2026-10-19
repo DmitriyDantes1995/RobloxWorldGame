@@ -1,0 +1,62 @@
+[
+  {
+    "instance": "ReplicatedStorage.TreasureCatalog",
+    "file": "src/ReplicatedStorage/TreasureCatalog.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "ServerScriptService.BaseServer",
+    "file": "src/ServerScriptService/BaseServer.luau",
+    "class": "Script"
+  },
+  {
+    "instance": "ServerScriptService.LairServer",
+    "file": "src/ServerScriptService/LairServer.luau",
+    "class": "Script"
+  },
+  {
+    "instance": "ServerScriptService.GameSystems.GameEconomy",
+    "file": "src/ServerScriptService/GameSystems/GameEconomy.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "ServerScriptService.GameSystems.LairConfig",
+    "file": "src/ServerScriptService/GameSystems/LairConfig.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "ServerScriptService.GameSystems.LairExpedition",
+    "file": "src/ServerScriptService/GameSystems/LairExpedition.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "ServerScriptService.GameSystems.LairLoot",
+    "file": "src/ServerScriptService/GameSystems/LairLoot.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "ServerScriptService.GameSystems.LairTraps",
+    "file": "src/ServerScriptService/GameSystems/LairTraps.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "ServerScriptService.GameSystems.LairMonster",
+    "file": "src/ServerScriptService/GameSystems/LairMonster.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "ServerScriptService.GameSystems.LairSafety",
+    "file": "src/ServerScriptService/GameSystems/LairSafety.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "ServerScriptService.GameSystems.PlayerProgress",
+    "file": "src/ServerScriptService/GameSystems/PlayerProgress.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "StarterPlayer.StarterPlayerScripts.TreasureHUD",
+    "file": "src/StarterPlayer/StarterPlayerScripts/TreasureHUD.luau",
+    "class": "LocalScript"
+  }
+]
