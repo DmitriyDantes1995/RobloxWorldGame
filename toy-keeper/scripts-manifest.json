@@ -25,6 +25,16 @@
     "class": "Script"
   },
   {
+    "instance": "ServerScriptService.ToyVehicle",
+    "file": "toy-keeper/src/ServerScriptService/ToyVehicle.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "StarterPlayer.StarterPlayerScripts.ToyVehicleClient",
+    "file": "toy-keeper/src/StarterPlayer/StarterPlayerScripts/ToyVehicleClient.luau",
+    "class": "LocalScript"
+  },
+  {
     "instance": "StarterPlayer.StarterPlayerScripts.ToyHUD",
     "file": "toy-keeper/src/StarterPlayer/StarterPlayerScripts/ToyHUD.luau",
     "class": "LocalScript"

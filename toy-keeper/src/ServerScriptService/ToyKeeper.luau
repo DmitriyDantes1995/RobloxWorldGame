@@ -8,10 +8,11 @@ function Keeper.new(scene,model,points,settings,onCaught,inBase,onEscape)
     local root=model.HumanoidRootPart
     local radius=math.max(math.abs(cf.X-root.Position.X)+size.X/2,math.abs(cf.Z-root.Position.Z)+size.Z/2)+.5
     local self=setmetatable({scene=scene,model=model,root=root,humanoid=model.Humanoid,
-        settings=settings,onCaught=onCaught,inBase=inBase,onEscape=onEscape,pursuits={},
+        settings=settings,onCaught=onCaught,inBase=inBase,onEscape=onEscape,pursuits={},notices={},
         patrolIndex=1,joints={},switchAt=0,radius=radius,height=size.Y},Keeper)
     self.points=points:GetChildren()
     table.sort(self.points,function(a,b)return a.Name<b.Name end)
+    self.patrolIndex=self:NearestPatrolPoint()
     self.boundaryZ=scene.SafeZone.Position.Z+scene.SafeZone.Size.Z/2+radius+1
     local lane=scene.Corridor
     self.minX=lane.Position.X-lane.Size.X/2+radius
@@ -21,15 +22,34 @@ function Keeper.new(scene,model,points,settings,onCaught,inBase,onEscape)
         if v:IsA("BasePart")then v.CollisionGroup="ToyGuard";if not v.Anchored then v:SetNetworkOwner(nil)end end
         if v:IsA("Motor6D")then self.joints[v.Name]={joint=v,base=v.C0}end
     end
+    local attachment=Instance.new("Attachment");attachment.Name="NoticeFacing";attachment.Parent=root
+    local facing=Instance.new("AlignOrientation");facing.Name="NoticeFacing";facing.Mode=Enum.OrientationAlignmentMode.OneAttachment
+    facing.Attachment0=attachment;facing.MaxTorque=1e7;facing.Responsiveness=14;facing.Enabled=false;facing.Parent=root
+    self.facing=facing
+    local alert=Instance.new("Highlight");alert.Name="TheftAlert";alert.Adornee=model
+    alert.FillTransparency=1;alert.OutlineTransparency=.15;alert.DepthMode=Enum.HighlightDepthMode.Occluded
+    alert.Enabled=false;alert.Parent=model;self.alert=alert
     self:SetState("Guarding")
     return self
+end
+function Keeper:NearestPatrolPoint()
+    local nearest,distance=1,math.huge
+    for i,point in self.points do
+        local gap=horizontal(self.root.Position-point.Position).Magnitude
+        if gap<distance then nearest=i;distance=gap end
+    end
+    return nearest
 end
 function Keeper:SetState(state)
     self.state=state;self.model:SetAttribute("State",state)
     local chasing=state=="Chasing" or state=="Striking"
-    self.model.EyeL.Color=chasing and Color3.fromRGB(255,90,78)or Color3.fromRGB(132,237,255)
+    if self.alert then
+        self.alert.Enabled=chasing or state=="Alert"
+        self.alert.OutlineColor=state=="Alert" and Color3.fromRGB(255,201,72) or Color3.fromRGB(255,90,78)
+    end
+    self.model.EyeL.Color=state=="Alert" and Color3.fromRGB(255,201,72) or chasing and Color3.fromRGB(255,90,78)or Color3.fromRGB(132,237,255)
     self.model.EyeR.Color=self.model.EyeL.Color
-    self.root.Mood.Label.Text=self.settings.GuardName.."\n"..(chasing and "ВЕРНИ ПОДАРОК!"or state=="Returning"and "Назад к подаркам…"or "Можно смотреть. Не трогать!")
+    self.root.Mood.Label.Text=self.settings.GuardName.."\n"..(state=="Alert" and "! ЭЙ! РУКИ ПРОЧЬ!" or chasing and "ВЕРНИ ПОДАРОК!"or state=="Returning"and "Назад к подаркам…"or "Можно смотреть. Не трогать!")
 end
 function Keeper:Root(player)
     local char=player.Character
@@ -37,18 +57,26 @@ function Keeper:Root(player)
     if player.Parent~=Players or not player:GetAttribute("ProgressLoaded")or not h or h.Health<=0 then return nil end
     return char:FindFirstChild("HumanoidRootPart")
 end
-function Keeper:StartChase(player)
+function Keeper:StartChase(player,gift)
     local now=workspace:GetServerTimeNow()
     if not self:Root(player)or now<(player:GetAttribute("CatchGraceUntil")or 0)then return false end
     if self.pursuits[player]then return true end
-    self.pursuits[player]={warningUntil=now+self.settings.Warning,started=now}
-    if not self.target then self.target=player;self:SetState("Chasing")end
+    local notice=self.notices[player]
+    if not notice or notice.gift~=gift then
+        notice={gift=gift,warningUntil=now+self.settings.Warning};self.notices[player]=notice
+    end
+    self.pursuits[player]={warningUntil=notice.warningUntil,started=now}
+    if not self.target then self.target=player;self:SetState(now<notice.warningUntil and "Alert" or "Chasing")end
     return true
 end
 function Keeper:RemovePlayer(player,reason)
+    if reason then self.notices[player]=nil end
     if not self.pursuits[player]then return end
     self.pursuits[player]=nil
-    if self.target==player then self.target=nil;self.model:SetAttribute("TargetUserId",0);self:SetState("Returning")end
+    if self.target==player then
+        self.target=nil;self.model:SetAttribute("TargetUserId",0)
+        self.patrolIndex=self:NearestPatrolPoint();self:SetState("Returning")
+    end
     if reason then self.onEscape(player,reason,self.settings.GuardName)end
 end
 function Keeper:Navigate(goal)
@@ -61,23 +89,36 @@ function Keeper:Step(now)
     local best,bestScore
     for player in self.pursuits do
         local root=self:Root(player)
-        if not root or (player:GetAttribute("CarriedGift")or "")==""then self:RemovePlayer(player)
+        if not root or ((player:GetAttribute("CarriedGift")or "")=="" and (player:GetAttribute("CapturingGift")or "")=="")then self:RemovePlayer(player)
         elseif self.inBase(root.Position)then self:RemovePlayer(player,"Safe")
         else
             local score=horizontal(root.Position-self.root.Position).Magnitude
             if not bestScore or score<bestScore then best=player;bestScore=score end
         end
     end
-    if best and (not self.target or (now>=self.switchAt and best~=self.target))then
-        self.target=best;self.switchAt=now+1;self:SetState("Chasing")
+    local currentRoot=self.target and self:Root(self.target)
+    local currentGap=currentRoot and horizontal(currentRoot.Position-self.root.Position).Magnitude or math.huge
+    if best and (not self.target or (now>=self.switchAt and best~=self.target and bestScore+Catalog.Guard.TargetSwitchMargin<currentGap))then
+        self.target=best;self.switchAt=now+Catalog.Guard.TargetSwitchSeconds;self:SetState("Chasing")
     end
     local pursuit=self.target and self.pursuits[self.target]
+    self.facing.Enabled=false
     local goal
     if pursuit then
         local root=self:Root(self.target)
         self.model:SetAttribute("TargetUserId",self.target.UserId)
         self.humanoid.WalkSpeed=now<pursuit.warningUntil and 0 or self.settings.ChaseSpeed
         goal=root.Position
+        if not self.strike then
+            local warning=now<pursuit.warningUntil
+            local state=warning and "Alert" or "Chasing"
+            if self.state~=state then self:SetState(state)end
+            local direction=horizontal(root.Position-self.root.Position)
+            if warning and direction.Magnitude>.1 then
+                self.facing.CFrame=CFrame.lookAt(Vector3.zero,direction)
+                self.facing.Enabled=true
+            end
+        end
         if now>=pursuit.warningUntil and now>=(self.target:GetAttribute("CatchGraceUntil")or 0)
             and horizontal(root.Position-self.root.Position).Magnitude<self.radius+1.5
             and math.abs(root.Position.Y-self.root.Position.Y)<self.height*.6 and not self.strike then
@@ -86,9 +127,11 @@ function Keeper:Step(now)
         end
     else
         self.humanoid.WalkSpeed=self.settings.PatrolSpeed
-        if horizontal(self.root.Position-self.points[self.patrolIndex].Position).Magnitude<4 then self.patrolIndex=self.patrolIndex%#self.points+1 end
         goal=self.points[self.patrolIndex].Position
-        if self.state=="Returning"and horizontal(self.root.Position-goal).Magnitude<6 then self:SetState("Guarding")end
+        if horizontal(self.root.Position-goal).Magnitude<4 then
+            if self.state=="Returning"then self:SetState("Guarding")end
+            self.patrolIndex=self.patrolIndex%#self.points+1;goal=self.points[self.patrolIndex].Position
+        end
     end
     local strike=self.strike
     if strike then

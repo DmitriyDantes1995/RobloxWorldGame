@@ -21,11 +21,12 @@ end
 
 local LEGACY_SIZES={[1]=true,[1.6]=true,[2.5]=true,[4]=true}
 
-local function validValues(record,legacy)
+local function validValues(record,legacy,version3)
     if type(record)~="table" or not integer(record.Coins) or not integer(record.SpeedLevel)
         or (legacy and record.SpeedLevel>5) or type(record.BootsUnlocked)~="boolean" or type(record.Collection)~="table"
         or type(record.PendingGift)~="string" or (record.PendingGift~="" and not Catalog.Gifts[record.PendingGift]) then return false end
-    if not legacy and (not integer(record.ToolLevel) or record.ToolLevel>8
+    local strengthLevel=if version3 then record.ToolLevel else record.StrengthLevel
+    if not legacy and (not integer(strengthLevel) or strengthLevel>Catalog.StrengthMaxLevel
         or (record.PendingGift=="" and record.PendingGiftSize~=0)
         or (record.PendingGift~="" and not Catalog.Size(record.PendingGiftSize))) then return false end
     local seen={}
@@ -52,7 +53,8 @@ local function valid(record)
     if type(record)~="table" then return false end
     if record.Version==1 then if not validLegacy(record) then return false end
     elseif record.Version==2 then if not validValues(record,true) then return false end
-    elseif record.Version==3 then if not validValues(record) then return false end
+    elseif record.Version==3 then if not validValues(record,false,true) then return false end
+    elseif record.Version==4 then if not validValues(record) or type(record.BootsCompensated)~="boolean" then return false end
     else return false end
     local session=record.Session
     return session==nil or (type(session)=="table" and type(session.Token)=="string" and integer(session.ExpiresAt))
@@ -60,7 +62,8 @@ end
 local function snapshot(profile)
     local player=profile.player
     return {Coins=player:GetAttribute("Coins"),SpeedLevel=player:GetAttribute("SpeedLevel"),
-        ToolLevel=player:GetAttribute("ToolLevel"),BootsUnlocked=player:GetAttribute("BootsUnlocked"),
+        StrengthLevel=player:GetAttribute("StrengthLevel"),BootsUnlocked=player:GetAttribute("BootsUnlocked"),
+        BootsCompensated=player:GetAttribute("BootsCompensated"),
         Collection=Catalog.CopyCollection(profile.collection),PendingGift=player:GetAttribute("PendingGift"),
         PendingGiftSize=player:GetAttribute("PendingGiftSize")}
 end
@@ -109,7 +112,7 @@ function PlayerProgress:Load(player)
     local data,reason=self:_request(profile,function(old)
         if profile.closing then return nil,"cancelled" end
         if old==nil then
-            old={Version=3,Coins=0,SpeedLevel=0,ToolLevel=0,BootsUnlocked=false,Collection={},PendingGift="",PendingGiftSize=0}
+            old={Version=4,Coins=0,SpeedLevel=0,StrengthLevel=0,BootsCompensated=true,BootsUnlocked=false,Collection={},PendingGift="",PendingGiftSize=0}
         end
         if not valid(old) then return nil,"invalid data or unsupported version" end
         local lock=old.Session
@@ -134,6 +137,12 @@ function PlayerProgress:Load(player)
                 record.PendingGiftSize=migrationGiftSize
             end
         end
+        if old.Version<4 then
+            -- v3 already refunded boots. v2 was refunded immediately above in this callback.
+            -- Keep purchased tool levels as strength; never pay the same boots twice.
+            record.StrengthLevel=record.ToolLevel or 0
+            record.ToolLevel=nil;record.BootsCompensated=true;record.Version=4
+        end
         record.Session={Token=profile.token,ExpiresAt=os.time()+LEASE_SECONDS}
         return record
     end,deadline)
@@ -145,7 +154,7 @@ function PlayerProgress:Load(player)
     end
     profile.loaded=true;profile.expiresAt=data.Session.ExpiresAt
     profile.collection=Catalog.CopyCollection(data.Collection)
-    profile.initial={Coins=data.Coins,SpeedLevel=data.SpeedLevel,ToolLevel=data.ToolLevel,BootsUnlocked=data.BootsUnlocked,
+    profile.initial={Coins=data.Coins,SpeedLevel=data.SpeedLevel,StrengthLevel=data.StrengthLevel,BootsUnlocked=data.BootsUnlocked,BootsCompensated=data.BootsCompensated,
         Collection=profile.collection,PendingGift=data.PendingGift,PendingGiftSize=data.PendingGiftSize}
     if profile.closing or player.Parent~=Players then
         self:Close(player)
@@ -204,7 +213,7 @@ function PlayerProgress:_write(profile,release,deadline)
         local lock=old.Session
         if not lock or lock.Token~=profile.token or lock.ExpiresAt<=os.time() then return nil,"session lost" end
         local record=table.clone(old)
-        record.Version=3;record.Coins=data.Coins;record.SpeedLevel=data.SpeedLevel;record.ToolLevel=data.ToolLevel;record.LastWrite=writeId
+        record.Version=4;record.Coins=data.Coins;record.SpeedLevel=data.SpeedLevel;record.StrengthLevel=data.StrengthLevel;record.ToolLevel=nil;record.BootsCompensated=data.BootsCompensated;record.LastWrite=writeId
         record.Collection=Catalog.CopyCollection(data.Collection);record.BootsUnlocked=data.BootsUnlocked;record.PendingGift=data.PendingGift
         record.PendingGiftSize=data.PendingGiftSize
         record.Toys=nil

@@ -3,6 +3,7 @@ local ReplicatedStorage=game:GetService("ReplicatedStorage")
 local Catalog=require(ReplicatedStorage.ToyCatalog)
 local PhysicsService=game:GetService("PhysicsService")
 local Keeper=require(script.Parent.ToyKeeper)
+local Vehicle=require(script.Parent.ToyVehicle)
 local Game={}
 Game.__index=Game
 local LIMIT=9007199254740991
@@ -22,14 +23,16 @@ function Game.new(scene,progress,signal)
     PhysicsService:CollisionGroupSetCollidable("ToyGuard","ToyGuard",false)
     PhysicsService:CollisionGroupSetCollidable("ToyGuard","ToyPlayer",false)
     local self=setmetatable({scene=scene,progress=progress,signal=signal,rng=Random.new(),
-        slots={},breaking={},carried={},plots={},cooldowns={},recovering={},selected={},customDisplay={},syncAt={},keepers={},lastIncome=workspace:GetServerTimeNow()},Game)
+        slots={},capturing={},carried={},plots={},cooldowns={},recovering={},selected={},customDisplay={},syncAt={},keepers={},lastIncome=workspace:GetServerTimeNow()},Game)
     for index,settings in Catalog.Zones do
         self.keepers[index]=Keeper.new(scene,scene.Keepers[settings.Keeper],scene.PatrolPoints[settings.Keeper],settings,
             function(p,keeper) self:Catch(p,keeper) end,function(pos) return inside(scene.SafeZone,pos) end,
             function(p,reason,name)
-                if reason=="Safe" then self:EndChases(p) end
-                self:Notify(p,"СПАСЁН! Хранитель остался за границей сада.")
-                if reason=="Safe" then self.signal:FireClient(p,"Escaped") end
+                if reason=="Safe" then
+                    self:EndChases(p)
+                    self:Notify(p,"СПАСЁН! Хранитель остался за границей сада.")
+                    self.signal:FireClient(p,"Escaped")
+                end
             end)
     end
     for _,point in scene.GiftPoints:GetChildren() do
@@ -39,13 +42,13 @@ function Game.new(scene,progress,signal)
     for _,plot in scene.Bases:GetChildren() do
         plot.OpenStation.Prompt.Triggered:Connect(function(p) self:TryOpen(p) end)
         plot.SpeedStation.Prompt.Triggered:Connect(function(p) self:TryBuy(p) end)
-        plot.ToolStation.Prompt.Triggered:Connect(function(p) self:TryBuy(p,"Tool") end)
+        plot.StrengthStation.Prompt.Triggered:Connect(function(p) self:TryBuy(p,"Strength") end)
     end
     signal.OnServerEvent:Connect(function(player,action,argument)
         -- Remote requests never carry rarity, award identity, balance or price.
         if action=="Open" then self:TryOpen(player)
         elseif action=="Speed" then self:TryBuy(player)
-        elseif action=="Tool" then self:TryBuy(player,"Tool")
+        elseif action=="Strength" then self:TryBuy(player,"Strength")
         elseif action=="Drop" then self:Drop(player)
         elseif action=="Select" then self:SelectToy(player,argument)
         elseif action=="Sync" and self.progress:IsReady(player) then
@@ -134,84 +137,88 @@ function Game:SpawnGift(slot)
     model:SetAttribute("Rarity",rarity);model:SetAttribute("Zone",zone)
     slot.size=Catalog.RollSize(self.rng)
     model:SetAttribute("SizeMultiplier",slot.size)
-    model:SetAttribute("ProtectionMax",Catalog.Packaging.Health[rarity])
     model:PivotTo(slot.point.CFrame*CFrame.new(0,1.45*Catalog.WorldScale,0))
     model.Parent=self.scene.Gifts
-    slot.model=model;slot.rarity=rarity;slot.zone=zone;slot.owner=nil;slot.readyAt=nil
-    self:SetProtection(slot,Catalog.Packaging.Health[rarity])
+    slot.model=model;slot.rarity=rarity;slot.zone=zone;slot.owner=nil;slot.readyAt=nil;slot.captor=nil
     local prompt=model.Box.Prompt
-    prompt.HoldDuration=Catalog.BreakDuration(rarity,0)
-    prompt.PromptButtonHoldBegan:Connect(function(p)self:BeginBreak(p,slot)end)
-    prompt.PromptButtonHoldEnded:Connect(function(p)self:EndBreak(p,slot)end)
+    prompt.ActionText="Вытянуть подарок";prompt.HoldDuration=Catalog.CaptureDuration(rarity,0)+Catalog.Capture.PromptReleaseBuffer
+    prompt.MaxActivationDistance=Catalog.Capture.Distance;prompt.ClickablePrompt=true
+    prompt.PromptButtonHoldBegan:Connect(function(p)self:BeginCapture(p,slot)end)
+    prompt.PromptButtonHoldEnded:Connect(function(p)self:EndCapture(p,slot)end)
     prompt.Triggered:Connect(function(p)
-        local job=self.breaking[p]
-        if job and job.slot==slot then self:AdvanceBreak(job,workspace:GetServerTimeNow())
-        elseif slot.health==0 then self:TryPickup(p,slot)end
+        local job=self.capturing[p]
+        if job and job.slot==slot then self:AdvanceCapture(job,workspace:GetServerTimeNow())end
     end)
 end
-function Game:SetProtection(slot,health)
-    slot.health=math.max(0,health)
-    local max=Catalog.Packaging.Health[slot.rarity]
-    slot.model:SetAttribute("Protection",slot.health)
-    slot.model.Box.Prompt.ActionText=slot.health>0 and "Вскрыть упаковку"or "Забрать подарок"
-    if slot.health==0 then slot.model.Box.Prompt.HoldDuration=.15 end
-    for i=1,3 do
-        slot.model["Wrap"..i].Transparency=slot.health==0 and 1 or 0
-        slot.model["Crack"..i].Transparency=slot.health>0 and slot.health/max<=1-i*.22 and 0 or 1
-    end
-end
-function Game:CancelBreak(player)
-    local job=self.breaking[player]
+function Game:CancelCapture(player)
+    local job=self.capturing[player]
     if not job then return end
-    self.breaking[player]=nil
-    if job.slot.breaker==player then job.slot.breaker=nil end
-    player:SetAttribute("BreakingGift","")
+    self.capturing[player]=nil
+    if job.slot.captor==player then
+        job.slot.captor=nil
+        job.slot.model:SetAttribute("CaptureUserId",nil)
+        job.slot.model:SetAttribute("CaptureStartedAt",nil)
+        job.slot.model:SetAttribute("CaptureDuration",nil)
+    end
+    player:SetAttribute("CapturingGift","")
+    if not self.carried[player] then self:EndChases(player)end
 end
-function Game:BeginBreak(player,slot)
-    if not slot.model or slot.owner or slot.health<=0 or (slot.breaker and slot.breaker~=player)
-        or self.carried[player]or not self.progress:IsReady(player)or player:GetAttribute("PendingGift")~=""
+function Game:BeginCapture(player,slot)
+    if not slot.model or slot.owner or (slot.captor and slot.captor~=player)
+        or not slot.model.Box.Prompt.Enabled or self.carried[player] or self.recovering[player]
+        or not self.progress:IsReady(player) or player:GetAttribute("PendingGift")~=""
         or workspace:GetServerTimeNow()<(player:GetAttribute("CatchGraceUntil")or 0)
-        or not self:CanUse(player,slot.model.Box)then return false end
-    if self.breaking[player]and self.breaking[player].slot==slot then return true end
-    self:CancelBreak(player)
+        or not self:CanUse(player,slot.model.Box) then return false end
+    if self.capturing[player]and self.capturing[player].slot==slot then return true end
+    self:CancelCapture(player)
     local now=workspace:GetServerTimeNow()
-    self.breaking[player]={player=player,slot=slot,nextHit=now+Catalog.Packaging.HitInterval,power=Catalog.ToolPower(player:GetAttribute("ToolLevel"))}
-    slot.breaker=player;player:SetAttribute("BreakingGift",slot.model.Name)
+    local duration=Catalog.CaptureDuration(slot.rarity,player:GetAttribute("StrengthLevel"))
+    local job={player=player,slot=slot,started=now,duration=duration,character=player.Character}
+    self.capturing[player]=job;slot.captor=player
+    slot.model:SetAttribute("CaptureDuration",duration)
+    slot.model:SetAttribute("CaptureStartedAt",now)
+    slot.model:SetAttribute("CaptureUserId",player.UserId)
+    player:SetAttribute("CapturingGift",slot.model.Name)
+    self.keepers[slot.zone]:StartChase(player,slot.model)
+    self:UpdateChase(player)
     return true
 end
-function Game:AdvanceBreak(job,now)
+function Game:CaptureValid(job)
     local player,slot=job.player,job.slot
-    if self.breaking[player]~=job then return end
-    if not slot.model or slot.owner or not self:CanUse(player,slot.model.Box)or self.carried[player]
-        or player:GetAttribute("PendingGift")~=""then self:CancelBreak(player);return end
-    local hits=math.floor((now+.04-job.nextHit)/Catalog.Packaging.HitInterval)+1
-    if hits<=0 then return end
-    job.nextHit+=hits*Catalog.Packaging.HitInterval
-    self:SetProtection(slot,slot.health-hits*job.power)
-    if slot.health==0 then self:CancelBreak(player);self:TryPickup(player,slot)end
+    return self.capturing[player]==job and slot.captor==player and not slot.owner and slot.model
+        and slot.model.Box.Prompt.Enabled and not self.carried[player] and not self.recovering[player]
+        and player.Character==job.character and self.progress:IsReady(player)
+        and workspace:GetServerTimeNow()>=(player:GetAttribute("CatchGraceUntil")or 0)
+        and player:GetAttribute("PendingGift")=="" and self:CanUse(player,slot.model.Box)
 end
-function Game:EndBreak(player,slot)
-    local job=self.breaking[player]
-    if job and job.slot==slot then self:AdvanceBreak(job,workspace:GetServerTimeNow());self:CancelBreak(player)end
+function Game:AdvanceCapture(job,now)
+    if self.capturing[job.player]~=job then return end
+    if not self:CaptureValid(job)then self:CancelCapture(job.player);return end
+    if now-job.started>=job.duration then self:TryPickup(job.player,job.slot,job)end
 end
-function Game:TryPickup(player,slot)
-    if slot.owner or not slot.model or slot.health>0 or (slot.breaker and slot.breaker~=player)or not slot.model.Box.Prompt.Enabled or self.carried[player]
-        or not self.progress:IsReady(player) or player:GetAttribute("PendingGift")~="" then return false end
-    local now=workspace:GetServerTimeNow()
-    if now<(player:GetAttribute("CatchGraceUntil") or 0) then return false end
-    if not self:CanUse(player,slot.model.Box) or not self:TakeAction(player) then return false end
-    self:CancelBreak(player)
+function Game:EndCapture(player,slot)
+    local job=self.capturing[player]
+    if job and job.slot==slot then
+        self:AdvanceCapture(job,workspace:GetServerTimeNow())
+        self:CancelCapture(player)
+    end
+end
+function Game:TryPickup(player,slot,job)
+    -- Only a live server reservation that has completed its full duration can award.
+    if not job or job.slot~=slot or not self:CaptureValid(job)
+        or workspace:GetServerTimeNow()-job.started<job.duration then return false end
     local root=rootOf(player)
     slot.owner=player;self.carried[player]=slot
+    self:CancelCapture(player) -- carrier is already set, so the existing chase continues
     slot.model.Box.Prompt.Enabled=false
     slot.model:PivotTo(root.CFrame*CFrame.new(0,.5,-2.3*Catalog.WorldScale))
     for _,part in slot.model:GetDescendants() do if part:IsA("BasePart") then part.Anchored=false end end
     local weld=Instance.new("WeldConstraint")
     weld.Name="CarryWeld";weld.Part0=root;weld.Part1=slot.model.Box;weld.Parent=slot.model.Box
     player:SetAttribute("CarriedGift",slot.rarity)
-    self.keepers[slot.zone]:StartChase(player)
-    self:UpdateChase(player)
-    self:Notify(player,Catalog.Zones[slot.zone].GuardName.." заметил кражу! Беги в свой сад.")
+    self:ApplyUpgrades(player)
+    self.signal:FireAllClients("Captured",slot.model.Name)
+    self:Notify(player,"Схватил! Беги в свой сад.")
     return true
 end
 function Game:Detach(slot)
@@ -219,7 +226,7 @@ function Game:Detach(slot)
     if weld then weld:Destroy() end
     for _,part in slot.model:GetDescendants() do if part:IsA("BasePart") then part.Anchored=true end end
     local player=slot.owner
-    if player then self.carried[player]=nil;player:SetAttribute("CarriedGift","") end
+    if player then self.carried[player]=nil;player:SetAttribute("CarriedGift","");self:ApplyUpgrades(player) end
     slot.owner=nil
 end
 function Game:DropPosition(root)
@@ -254,7 +261,7 @@ function Game:Drop(player,forced)
     -- Death in the void or a fully occupied corner must not strand a shared gift.
     position=position or slot.point.Position+Vector3.new(0,1.45*Catalog.WorldScale,0)
     self:Detach(slot)
-    self:EndChases(player)
+    self:EndChases(player,"Resolved")
     slot.model:PivotTo(CFrame.new(position))
     slot.model.Box.Prompt.Enabled=true
     return true
@@ -311,19 +318,20 @@ end
 function Game:Catch(player,keeper)
     local now=workspace:GetServerTimeNow()
     local root=rootOf(player)
-    if not root or not self.carried[player]or not self.progress:IsReady(player) or self.recovering[player]
+    if not root or (not self.carried[player] and not self.capturing[player])or not self.progress:IsReady(player) or self.recovering[player]
         or now<(player:GetAttribute("CatchGraceUntil") or 0) or inside(self.scene.SafeZone,root.Position) then return false end
     local velocity=self:ThrowVelocity(root,keeper)
-    self:Drop(player,true)
+    self:CancelCapture(player);self:Drop(player,true);self:EndChases(player)
     player:SetAttribute("CatchGraceUntil",now+Catalog.Catch.GraceSeconds)
     local humanoid=root.Parent:FindFirstChildOfClass("Humanoid")
+    Vehicle.Eject(humanoid)
     self.recovering[player]={root=root,humanoid=humanoid,started=now}
     humanoid.WalkSpeed=0;humanoid.PlatformStand=true;humanoid.AutoRotate=false
     root:SetNetworkOwner(nil)
     root:ApplyImpulse(root.AssemblyMass*(velocity-root.AssemblyLinearVelocity))
     root.AssemblyAngularVelocity=Vector3.new(Catalog.Catch.Spin,.8,0)
     self.signal:FireClient(player,"Caught",root.Position)
-    self:Notify(player,"УХ! Подарок рядом с охранником — успей вернуть его!")
+    self:Notify(player,"УХ! Охранник заметил попытку. Отступи и попробуй снова!")
     return true
 end
 function Game:StepRecovery(player,now)
@@ -381,20 +389,20 @@ function Game:TryOpen(player)
 end
 function Game:TryBuy(player,kind)
     local plot=self.plots[player]
-    if kind~=nil and kind~="Tool"then return false end
-    local tool=kind=="Tool"
-    if not plot or not self:InOwnBase(player)or not self:CanUse(player,tool and plot.ToolStation or plot.SpeedStation)or not self:TakeAction(player)then return false end
-    local attribute=tool and "ToolLevel"or "SpeedLevel"
+    if kind~=nil and kind~="Strength"then return false end
+    local strength=kind=="Strength"
+    if not plot or not self:InOwnBase(player)or not self:CanUse(player,strength and plot.StrengthStation or plot.SpeedStation)or not self:TakeAction(player)then return false end
+    local attribute=strength and "StrengthLevel"or "SpeedLevel"
     local level=player:GetAttribute(attribute)
     if level>=LIMIT then return false end
-    local price=tool and Catalog.ToolPrice(level)or Catalog.SpeedPrice(level)
-    if tool and level>=Catalog.ToolMaxLevel then return false end
+    local price=strength and Catalog.StrengthPrice(level)or Catalog.SpeedPrice(level)
+    if strength and level>=Catalog.StrengthMaxLevel then return false end
     if not price then return false end
     local coins=player:GetAttribute("Coins")
     if coins<price then self:Notify(player,"Нужно "..price.." монет. Игрушки приносят доход каждую секунду.");return false end
     player:SetAttribute("Coins",coins-price);player:SetAttribute(attribute,level+1)
     self:ApplyUpgrades(player);self.progress:RequestSave(player)
-    self:Notify(player,tool and "Инструмент сильнее — упаковка сдаётся быстрее!"or string.format("Скорость %.1f — пора бежать дальше!",Catalog.SpeedForLevel(level+1)))
+    self:Notify(player,strength and "Сила выросла — быстрее забирай подарки!"or string.format("Скорость %.1f — пора бежать дальше!",Catalog.SpeedForLevel(level+1)))
     return true
 end
 function Game:ApplyUpgrades(player)
@@ -404,17 +412,10 @@ function Game:ApplyUpgrades(player)
     local humanoid=character:FindFirstChildOfClass("Humanoid")
     humanoid.WalkSpeed=self.recovering[player]and 0 or Catalog.SpeedForLevel(player:GetAttribute("SpeedLevel"))
     humanoid.UseJumpPower=false;humanoid.JumpHeight=7.2
-    local hammer=character:FindFirstChild("ToyHammer")
-    if not hammer then
-        local hand=character:FindFirstChild("RightHand")or character:FindFirstChild("Right Arm")
-        if hand then
-            hammer=ReplicatedStorage.ToyHammer:Clone();hammer:PivotTo(hand.CFrame*CFrame.new(0,-hand.Size.Y/2,-.3));hammer.Parent=character
-            for _,part in hammer:GetDescendants()do if part:IsA("BasePart")then part.Anchored=false;part.CollisionGroup="ToyPlayer"end end
-            local grip=Instance.new("Motor6D");grip.Name="ToyHammerGrip";grip.Part0=hand;grip.Part1=hammer.PrimaryPart
-            grip.C0=CFrame.new(0,-hand.Size.Y/2,-.3);grip.Parent=hand
-        end
+    local slot=self.carried[player]
+    if slot and not self.recovering[player] then
+        humanoid.WalkSpeed*=Catalog.CarryMultiplier(slot.rarity,player:GetAttribute("StrengthLevel"))
     end
-    if hammer then hammer.Head.Color=Color3.fromHSV(.12+player:GetAttribute("ToolLevel")*.055,.5,.95)end
 end
 function Game:AddPlayer(player,data)
     local used={}
@@ -430,8 +431,9 @@ function Game:AddPlayer(player,data)
     player.RespawnLocation=plot.Spawn
     player:SetAttribute("BaseId",plot.Name)
     player:SetAttribute("Coins",data.Coins);player:SetAttribute("SpeedLevel",data.SpeedLevel)
+    player:SetAttribute("BootsCompensated",data.BootsCompensated)
     player:SetAttribute("BootsUnlocked",data.BootsUnlocked) -- preserved legacy purchase, never used for movement
-    player:SetAttribute("ToolLevel",data.ToolLevel);player:SetAttribute("BreakingGift","")
+    player:SetAttribute("StrengthLevel",data.StrengthLevel);player:SetAttribute("CapturingGift","")
     player:SetAttribute("PendingGift",data.PendingGift);player:SetAttribute("PendingGiftSize",data.PendingGiftSize);player:SetAttribute("CarriedGift","")
     player:SetAttribute("Chasing",false);player:SetAttribute("ChaseGuard","");player:SetAttribute("CatchGraceUntil",0)
     if not self.progress:Activate(player) then self:RemovePlayer(player);return false end
@@ -450,11 +452,12 @@ function Game:CharacterAdded(player,character)
     if plot then character:PivotTo(plot.Spawn.CFrame*CFrame.new(0,4,0)) end
     self:ApplyUpgrades(player)
     humanoid.Died:Connect(function()
-        self:CancelBreak(player);self:Drop(player,true);self:EndChases(player);self:FinishRecovery(player)
+        self:CancelCapture(player);self:Drop(player,true);self:EndChases(player);self:FinishRecovery(player)
     end)
 end
 function Game:RemovePlayer(player)
-    self:CancelBreak(player);self:Drop(player,true);self:EndChases(player);self:FinishRecovery(player)
+    self:CancelCapture(player);self:Drop(player,true);self:EndChases(player);self:FinishRecovery(player)
+    for _,keeper in self.keepers do keeper.notices[player]=nil end
     local plot=self.plots[player]
     if plot then plot:SetAttribute("OwnerUserId",nil);plot.Sign.SurfaceGui.Label.Text="СВОБОДНЫЙ\nЖИВОЙ САД" end
     self.plots[player]=nil;self.cooldowns[player]=nil;self.recovering[player]=nil
@@ -462,7 +465,7 @@ function Game:RemovePlayer(player)
     self.signal:FireAllClients("CollectionRemoved",player.UserId)
 end
 function Game:Step(now)
-    for _,job in self.breaking do self:AdvanceBreak(job,now)end
+    for _,job in self.capturing do self:AdvanceCapture(job,now)end
     for player in self.plots do
         local root=rootOf(player)
         player:SetAttribute("AtBase",root~=nil and self:InOwnBase(player)==true)

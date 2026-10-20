@@ -3,7 +3,9 @@ local RunService=game:GetService("RunService")
 local ReplicatedStorage=game:GetService("ReplicatedStorage")
 local Progress=require(script.Parent.ToyProgress)
 local Game=require(script.Parent.ToyGame)
+local Vehicle=require(script.Parent.ToyVehicle)
 local gameLoop=Game.new(workspace.ToyKeeper,Progress,ReplicatedStorage.ToySignal)
+local vehicle=Vehicle.new(workspace.ToyKeeper)
 
 local function joined(player)
     player:SetAttribute("ProgressLoaded",false)
@@ -28,6 +30,7 @@ end)
 for _,player in Players:GetPlayers() do task.spawn(joined,player) end
 local elapsed=0
 RunService.Heartbeat:Connect(function(dt)
+    vehicle:Step(workspace:GetServerTimeNow(),dt)
     elapsed+=dt
     if elapsed<.1 then return end
     elapsed=0

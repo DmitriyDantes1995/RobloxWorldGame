@@ -43,12 +43,6 @@ end
 local chase=panel("Chase",UDim2.fromOffset(410,40),UDim2.new(.5,-205,0,106))
 chase.BackgroundColor3=Color3.fromRGB(135,51,66);chase.Visible=false
 local chaseLabel=text("Message","",UDim2.new(1,-12,1,0),UDim2.fromOffset(6,0),chase,15)
-local breaking=panel("Breaking",UDim2.fromOffset(260,52),UDim2.new(.5,-130,1,-144));breaking.Visible=false
-local breakingLabel=text("Protection","",UDim2.new(1,-12,0,30),UDim2.fromOffset(6,0),breaking,13)
-local protectionTrack=panel("Track",UDim2.new(1,-20,0,7),UDim2.fromOffset(10,35),breaking)
-protectionTrack.BackgroundColor3=Color3.fromRGB(58,63,82)
-local protectionFill=panel("Remaining",UDim2.fromScale(1,1),UDim2.fromScale(0,0),protectionTrack)
-protectionFill.BackgroundColor3=Color3.fromRGB(255,207,100)
 local homeArrow=text("HomeArrow","▲",UDim2.fromOffset(34,34),UDim2.new(.5,-17,1,-194),gui,28)
 local homeDistance=text("HomeDistance","",UDim2.fromOffset(160,22),UDim2.new(.5,-80,1,-167),gui,12)
 homeArrow.TextColor3=Color3.fromRGB(151,255,207)
@@ -97,7 +91,7 @@ for _,s in Catalog.Sizes do
     local range=s.Min==s.Max and string.format("×%.2f",s.Min) or string.format("×%.2f–%.2f",s.Min,s.Max)
     table.insert(sizes,range.." • "..s.Weight.."%")
 end
-text("Sizes","СЛУЧАЙНЫЙ РАЗМЕР • шаг 0.01\n"..table.concat(sizes," / ").."\nПеребор при открытии не меняет результат.",UDim2.new(1,-8,0,86),UDim2.fromOffset(0,252),oddsRows,13)
+text("Sizes","СЛУЧАЙНЫЙ РАЗМЕР • шаг 0.01\n"..table.concat(sizes," / ").."\nРост X при открытии не меняет результат.",UDim2.new(1,-8,0,86),UDim2.fromOffset(0,252),oddsRows,13)
 local zoneOdds={}
 for _,zone in Catalog.Zones do
     local weights={}
@@ -107,8 +101,12 @@ end
 text("Spawn","Подарки C/R/E/L (%):\n"..table.concat(zoneOdds," • "),UDim2.new(1,-8,0,90),UDim2.fromOffset(0,342),oddsRows,12)
 local actions=panel("Actions",UDim2.fromOffset(520,64),UDim2.new(.5,-260,1,-76))
 local openButton=button("Open","ОТКРЫТЬ",UDim2.fromOffset(120,48),UDim2.fromOffset(8,8),actions,function()signal:FireServer("Open")end)
-local speedButton=button("Speed","СКОРОСТЬ",UDim2.fromOffset(120,48),UDim2.fromOffset(136,8),actions,function()signal:FireServer("Speed")end)
-local toolButton=button("Tool","ИНСТРУМЕНТ",UDim2.fromOffset(120,48),UDim2.fromOffset(264,8),actions,function()signal:FireServer("Tool")end)
+local speedButton=button("Speed","🏃 СКОРОСТЬ",UDim2.fromOffset(120,48),UDim2.fromOffset(136,8),actions,function()signal:FireServer("Speed")end)
+local strengthButton=button("Strength","💪 СИЛА",UDim2.fromOffset(120,48),UDim2.fromOffset(264,8),actions,function()signal:FireServer("Strength")end)
+speedButton.BackgroundColor3=Color3.fromRGB(43,127,139)
+speedButton.TextSize=11
+strengthButton.BackgroundColor3=Color3.fromRGB(143,95,60)
+strengthButton.TextSize=11
 local collectionButton=button("Collection","КОЛЛЕКЦИЯ",UDim2.fromOffset(120,48),UDim2.fromOffset(392,8),actions,function()collection.Visible=not collection.Visible;odds.Visible=false end)
 button("OddsButton","Шансы",UDim2.fromOffset(82,44),UDim2.new(1,-94,0,10),gui,function()odds.Visible=not odds.Visible;collection.Visible=false end)
 local dropButton=button("Drop","Бросить [G]",UDim2.fromOffset(110,44),UDim2.new(1,-122,0,60),gui,function()signal:FireServer("Drop")end)
@@ -128,14 +126,15 @@ local function clearReveal()
 end
 local function skip()
     if not reveal then return end
-    if os.clock()-reveal.started<1.5 then reveal.started=os.clock()-1.5 else clearReveal() end
+    local shownAt=reveal.growSeconds+.25
+    if os.clock()-reveal.started<shownAt then reveal.started=os.clock()-shownAt else clearReveal() end
 end
 button("Skip","Пропустить / готово",UDim2.new(1,-20,0,42),UDim2.new(0,10,1,-46),revealPanel,skip)
 local flash=Instance.new("Frame");flash.Name="Flash";flash.BackgroundColor3=Color3.new(1,1,1);flash.BackgroundTransparency=1
 flash.Size=UDim2.fromScale(1,1);flash.BorderSizePixel=0;flash.ZIndex=12;flash.Parent=revealPanel
 local function openReveal(data)
     clearReveal();collection.Visible=false;odds.Visible=false;toast.Visible=false
-    multiplier.Text="×1.00";multiplier.TextColor3=Catalog.Gifts[data.Gift].Color
+    multiplier.Text="×0.10";multiplier.TextColor3=Catalog.Gifts[data.Gift].Color
     flash.BackgroundTransparency=1
     local gift=ReplicatedStorage.GiftModels[data.Gift]:Clone()
     local toy=ReplicatedStorage.ToyModels[data.Toy]:Clone()
@@ -156,7 +155,10 @@ local function openReveal(data)
     toy:ScaleTo(data.SizeMultiplier)
     local box,size=toy:GetBoundingBox()
     local lift=toy:GetPivot().Position.Y-(box.Position.Y-size.Y/2)
-    reveal={data=data,gift=gift,toy=toy,lift=lift,height=size.Y,giftSize=giftSize,giftLift=giftLift,offsets=offsets,baseToySize=baseToySize,started=os.clock(),phase=Random.new():NextNumber(0,100),confetti={}}
+    gift:ScaleTo(.1)
+    gift:PivotTo(CFrame.new(0,giftLift*.1,0))
+    toy:PivotTo(CFrame.new(0,-200,0))
+    reveal={data=data,gift=gift,toy=toy,lift=lift,height=size.Y,giftSize=giftSize,giftLift=giftLift,offsets=offsets,baseToySize=baseToySize,started=os.clock(),growSeconds=3+7*math.clamp((data.SizeMultiplier-1)/3,0,1),confetti={}}
     for i=1,data.SizeMultiplier>=2.5 and 28 or 12 do
         local bit=Instance.new("Frame");bit.Name="Confetti";bit.Size=UDim2.fromOffset(5+(i%3)*2,9)
         bit.BorderSizePixel=0;bit.BackgroundColor3=Catalog.Gifts[Catalog.Order[i%4+1]].Color;bit.Visible=false;bit.ZIndex=13;bit.Parent=revealPanel
@@ -184,6 +186,9 @@ local function rebuild(packet)
         end
     end
 end
+local giftModels={}
+local captureVisuals={}
+local captured={}
 local escapedUntil=0
 local impactUntil=0
 local Debris=game:GetService("Debris")
@@ -207,6 +212,7 @@ end
 signal.OnClientEvent:Connect(function(action,data)
     if action=="Notify" then notify(data)
     elseif action=="Opened" then openReveal(data)
+    elseif action=="Captured" then captured[data]=true
     elseif action=="Caught" then caughtEffect(data)
     elseif action=="Escaped" then escapedUntil=os.clock()+2.5
     elseif action=="Collection" then packets[data.UserId]=data;rebuild(data);if data.UserId==player.UserId then refreshRows() end
@@ -215,80 +221,88 @@ signal.OnClientEvent:Connect(function(action,data)
         visuals[data]=nil;packets[data]=nil
     end
 end)
--- Native prompts own input. The local duration only presents the server's remaining work.
-local giftModels={}
+-- Default Roblox prompts keep E, controller and native touch hold behavior.
 local heldPrompts={}
-local function packagingBurst(model)
-    local box=model:FindFirstChild("Box")
-    if not box then return end
-    for i=1,7 do
-        local chip=Instance.new("Part");chip.Name="PackagingChip";chip.Size=Vector3.new(.13,.25,.08)*Catalog.WorldScale
-        chip.Anchored=true;chip.CanCollide=false;chip.CanQuery=false;chip.CanTouch=false
-        chip.Color=i%2==0 and Color3.fromRGB(255,235,184) or box.Color
-        chip.CFrame=box.CFrame*CFrame.new(math.sin(i*2.4)*box.Size.X*.4,.2,math.cos(i*2.4)*box.Size.Z*.4)
-        chip.Parent=visualFolder
-        local finish=chip.CFrame+Vector3.new(math.sin(i*2.4)*2,1+(i%3)*.4,math.cos(i*2.4)*2)*Catalog.WorldScale
-        TweenService:Create(chip,TweenInfo.new(.32),{CFrame=finish*CFrame.Angles(i,i*.7,i*.4),Transparency=1}):Play()
-        Debris:AddItem(chip,.35)
-    end
-end
+local stoppedCaptures={}
+local removeCaptureVisual
+local gifts=scene:WaitForChild("Gifts")
 local function watchGift(model)
-    if not model:IsA("Model") then return end
+    if not model:IsA("Model")then return end
     giftModels[model.Name]=model
-    local last=model:GetAttribute("Protection")
-    model:GetAttributeChangedSignal("Protection"):Connect(function()
-        local current=model:GetAttribute("Protection")
-        if type(last)=="number" and type(current)=="number" and current<last then packagingBurst(model) end
-        last=current
-    end)
     model.Destroying:Connect(function()if giftModels[model.Name]==model then giftModels[model.Name]=nil end end)
 end
-local gifts=scene:WaitForChild("Gifts")
 gifts.ChildAdded:Connect(watchGift)
-for _,model in gifts:GetChildren() do watchGift(model) end
-ProximityPromptService.PromptShown:Connect(function(prompt)
-    if heldPrompts[prompt] then return end
+for _,model in gifts:GetChildren()do watchGift(model)end
+local function refreshPrompt(prompt)
     local model=prompt:FindFirstAncestorOfClass("Model")
-    if not model or model.Parent~=gifts then return end
-    local protection=model:GetAttribute("Protection")
-    if type(protection)~="number" then return end
-    prompt.HoldDuration=math.max(.15,Catalog.BreakDuration(model:GetAttribute("Rarity"),player:GetAttribute("ToolLevel") or 0,protection))
-end)
-ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt)heldPrompts[prompt]=true end)
-ProximityPromptService.PromptButtonHoldEnded:Connect(function(prompt)heldPrompts[prompt]=nil end)
-ProximityPromptService.PromptHidden:Connect(function(prompt)heldPrompts[prompt]=nil end)
-local hammers={}
-local characterConnections={}
-local playerConnections={}
-local function unwatchCharacter(owner)
-    local connection=characterConnections[owner]
-    if connection then connection:Disconnect();characterConnections[owner]=nil end
-    local hammer=hammers[owner]
-    if hammer and hammer.joint.Parent then hammer.joint.Transform=hammer.base end
-    hammers[owner]=nil
+    if model and model.Parent==gifts and not heldPrompts[prompt] then
+        -- Native Triggered ends holding locally. Leave time for server event delivery;
+        -- the authoritative progress/award still finishes at the exact configured duration.
+        prompt.HoldDuration=Catalog.CaptureDuration(model:GetAttribute("Rarity"),player:GetAttribute("StrengthLevel")or 0)+Catalog.Capture.PromptReleaseBuffer
+    end
 end
-local function watchCharacter(owner,character)
-    unwatchCharacter(owner)
-    local function watchJoint(joint)
-        if joint:IsA("Motor6D") and joint.Name=="ToyHammerGrip" then
-            hammers[owner]={joint=joint,base=joint.Transform}
+ProximityPromptService.PromptShown:Connect(refreshPrompt)
+ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt)
+    heldPrompts[prompt]=true
+    local model=prompt:FindFirstAncestorOfClass("Model")
+    if model then stoppedCaptures[model]=nil end
+end)
+local function stopLocalCapture(prompt)
+    heldPrompts[prompt]=nil
+    local model=prompt:FindFirstAncestorOfClass("Model")
+    if model and model.Parent==gifts then
+        stoppedCaptures[model]=true
+        local v=captureVisuals[model]
+        if v and model:GetAttribute("CaptureUserId")==player.UserId then removeCaptureVisual(model,v)end
+    end
+end
+ProximityPromptService.PromptButtonHoldEnded:Connect(stopLocalCapture)
+ProximityPromptService.PromptHidden:Connect(stopLocalCapture)
+gifts.ChildRemoved:Connect(function(model)stoppedCaptures[model]=nil end)
+player:GetAttributeChangedSignal("StrengthLevel"):Connect(function()
+    for _,model in giftModels do refreshPrompt(model.Box.Prompt)end
+end)
+removeCaptureVisual=function(model,v)
+    if model.Parent then for _,part in model:GetDescendants()do
+        if part:IsA("BasePart")then part.LocalTransparencyModifier=0 end
+    end end
+    for _,attachment in v.anchors do attachment:Destroy()end
+    v.proxy:Destroy();captureVisuals[model]=nil
+end
+local function makeCaptureVisual(model)
+    local proxy=model:Clone();proxy.Name="PullingGift"
+    for _,part in proxy:GetDescendants()do
+        if part:IsA("ProximityPrompt")or part:IsA("BillboardGui")then part:Destroy()
+        elseif part:IsA("BasePart")then
+            part.Anchored=true;part.CanCollide=false;part.CanQuery=false;part.CanTouch=false
         end
     end
-    characterConnections[owner]=character.DescendantAdded:Connect(watchJoint)
-    for _,joint in character:GetDescendants() do watchJoint(joint) end
+    proxy.Parent=visualFolder
+    for _,part in model:GetDescendants()do if part:IsA("BasePart")then part.LocalTransparencyModifier=1 end end
+    local v={proxy=proxy,origin=model:GetPivot(),anchors={}}
+    for _,side in {-1,1}do
+        local anchor=Instance.new("Attachment");anchor.Position=Vector3.new(side*2.1,-2.5,0);anchor.Parent=model.Box
+        table.insert(v.anchors,anchor)
+        local endPoint=Instance.new("Attachment");endPoint.Position=Vector3.new(side*2.1,.1,0);endPoint.Parent=proxy.Box
+        local ribbon=Instance.new("Beam");ribbon.Attachment0=anchor;ribbon.Attachment1=endPoint
+        ribbon.Width0=.22;ribbon.Width1=.22;ribbon.FaceCamera=true;ribbon.Color=ColorSequence.new(Color3.fromRGB(255,226,163))
+        ribbon.Parent=proxy.Box
+    end
+    local billboard=Instance.new("BillboardGui");billboard.Name="CaptureProgress";billboard.Size=UDim2.fromOffset(174,44)
+    billboard.StudsOffsetWorldSpace=Vector3.new(0,4.3,0);billboard.AlwaysOnTop=true;billboard.Adornee=proxy.Box;billboard.Parent=proxy
+    local bg=panel("Progress",UDim2.fromScale(1,1),UDim2.fromScale(0,0),billboard)
+    v.label=text("Progress","",UDim2.new(1,0,0,27),UDim2.fromScale(0,0),bg,13)
+    local track=panel("Track",UDim2.new(1,-16,0,8),UDim2.fromOffset(8,30),bg)
+    v.fill=panel("Fill",UDim2.fromScale(0,1),UDim2.fromScale(0,0),track)
+    v.fill.BackgroundColor3=Color3.fromRGB(255,210,105)
+    captureVisuals[model]=v
+    return v
 end
-local function watchPlayer(owner)
-    playerConnections[owner]={owner.CharacterAdded:Connect(function(character)watchCharacter(owner,character)end),
-        owner.CharacterRemoving:Connect(function()unwatchCharacter(owner)end)}
-    if owner.Character then watchCharacter(owner,owner.Character) end
+local function releaseBurst(model)
+    local glow=Instance.new("Highlight");glow.FillColor=Color3.fromRGB(255,233,150);glow.FillTransparency=.35
+    glow.OutlineTransparency=1;glow.Adornee=model;glow.Parent=visualFolder
+    TweenService:Create(glow,TweenInfo.new(.22),{FillTransparency=1}):Play();Debris:AddItem(glow,.25)
 end
-Players.PlayerAdded:Connect(watchPlayer)
-Players.PlayerRemoving:Connect(function(owner)
-    unwatchCharacter(owner)
-    for _,connection in playerConnections[owner] or {} do connection:Disconnect() end
-    playerConnections[owner]=nil
-end)
-for _,owner in Players:GetPlayers() do watchPlayer(owner) end
 UserInputService.InputBegan:Connect(function(input,processed)
     if processed then return end
     if input.KeyCode==Enum.KeyCode.G then signal:FireServer("Drop")
@@ -297,14 +311,14 @@ end)
 local function update()
     local level=player:GetAttribute("SpeedLevel") or 0
     bank.Text=player:GetAttribute("ProgressLoaded") and "● "..(player:GetAttribute("Coins") or 0).."  +"..(player:GetAttribute("Income") or 0).."/с" or "Загрузка профиля…"
-    local toolLevel=player:GetAttribute("ToolLevel") or 0
-    movement.Text=string.format("Скорость %.1f  •  Молоток %d • сила %d",Catalog.SpeedForLevel(level),toolLevel,Catalog.ToolPower(toolLevel))
+    local strengthLevel=player:GetAttribute("StrengthLevel") or 0
+    movement.Text=string.format("🏃 %.1f  •  💪 Сила %d",Catalog.SpeedForLevel(level),strengthLevel)
     temp.Text=player:GetAttribute("TemporaryProgress") and "STUDIO • прогресс исчезнет после Stop" or ""
     local pending=player:GetAttribute("PendingGift") or "";local carry=player:GetAttribute("CarriedGift") or ""
     openButton.Text=pending~="" and "ОТКРЫТЬ [E]" or "НАЙДИ ПОДАРОК"
-    local speedPrice=Catalog.SpeedPrice(level);local toolPrice=Catalog.ToolPrice(toolLevel)
-    speedButton.Text=speedPrice and "СКОРОСТЬ\n"..speedPrice or "СКОРОСТЬ MAX"
-    toolButton.Text=toolPrice and "МОЛОТОК "..toolLevel.."\n"..toolPrice or "МОЛОТОК MAX"
+    local speedPrice=Catalog.SpeedPrice(level);local strengthPrice=Catalog.StrengthPrice(strengthLevel)
+    speedButton.Text="🏃 Скорость "..level.."\nКупить • "..speedPrice
+    strengthButton.Text=strengthPrice and "💪 Сила "..strengthLevel.." • "..strengthPrice.."\nБыстрее забирай подарки" or "💪 СИЛА MAX\nБыстрее забирай подарки"
     dropButton.Visible=carry~=""
     goal.Text=pending~="" and "Подарок дома! Открой у бирюзового стола." or carry~="" and "Беги в свой светящийся сад!" or "Удерживай E / кнопку у подарка → в свой сад → открыть"
 end
@@ -313,7 +327,7 @@ local function resize()
     local v=workspace.CurrentCamera.ViewportSize
     local aw=math.min(520,v.X-20);actions.Size=UDim2.fromOffset(aw,64);actions.Position=UDim2.new(.5,-aw/2,1,-76)
     local bw=(aw-40)/4
-    for i,b in {openButton,speedButton,toolButton,collectionButton} do b.Size=UDim2.fromOffset(bw,48);b.Position=UDim2.fromOffset(8+(i-1)*(bw+8),8) end
+    for i,b in {openButton,speedButton,strengthButton,collectionButton} do b.Size=UDim2.fromOffset(bw,48);b.Position=UDim2.fromOffset(8+(i-1)*(bw+8),8) end
     for _,p in {collection,odds,revealPanel} do
         local w=math.min(p==revealPanel and 620 or 520,v.X-24);local h=math.min(p==revealPanel and 520 or 440,v.Y-24)
         p.Size=UDim2.fromOffset(w,h);p.Position=UDim2.new(.5,-w/2,.5,-h/2)
@@ -328,30 +342,43 @@ workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize)
 resize();update();refreshRows();signal:FireServer("Sync")
 -- Presentation only: the server has already fixed data.SizeMultiplier.
 local function revealScale(r,t)
-    local settleStart,openAt=1.1,1.26
-    local function oscillate(at)
-        local phase=r.phase+at*48-at*at*10
-        return math.clamp(2.5+math.sin(phase)*1.12+math.sin(phase*1.71)*.55,1,4)
-    end
-    local value
-    if t<settleStart then value=oscillate(t)
-    elseif t<openAt then
-        local a=(t-settleStart)/(openAt-settleStart)
-        value=oscillate(settleStart)+(r.data.SizeMultiplier-oscillate(settleStart))*(1-(1-a)^2)
-    else value=r.data.SizeMultiplier end
-    return math.round(value*100)/100
+    local target=r.data.SizeMultiplier
+    local alpha=math.clamp(t/r.growSeconds,0,1)
+    if alpha>=1 then return target end
+    -- Positive progress only: grow from a small box and ease into the exact
+    -- awarded size. Never show a larger multiplier and then take it away.
+    local value=.1+(target-.1)*(1-(1-alpha)^1.35)
+    return math.min(target,math.round(value*100)/100)
 end
--- Motor transforms are written just before physics applies their batch.
+-- Short procedural effort pose, scaled to the actual capture; no movement lock.
+local posed={}
 RunService.PreSimulation:Connect(function()
-    local now=os.clock()
-    for owner,hammer in hammers do
-        if not hammer.joint.Parent then hammers[owner]=nil
-        elseif (owner:GetAttribute("BreakingGift") or "")~="" then
-            local phase=(now%Catalog.Packaging.HitInterval)/Catalog.Packaging.HitInterval
-            local angle=phase<.65 and -1.15*(phase/.65) or -1.15+1.65*((phase-.65)/.35)
-            hammer.joint.Transform=hammer.base*CFrame.Angles(angle,0,.12*math.sin(phase*math.pi))
-        else hammer.joint.Transform=hammer.base end
+    local active={}
+    local now=workspace:GetServerTimeNow()
+    for _,owner in Players:GetPlayers()do
+        local model=giftModels[owner:GetAttribute("CapturingGift")or ""]
+        local character=owner.Character
+        if model and character and not (owner==player and stoppedCaptures[model])then
+            local duration=model:GetAttribute("CaptureDuration")or 1
+            local alpha=math.clamp((now-(model:GetAttribute("CaptureStartedAt")or now))/duration,0,1)
+            for _,joint in character:GetDescendants()do
+                if joint:IsA("Motor6D")then
+                    local shoulder=joint.Name:find("Shoulder")
+                    local waist=joint.Name=="Waist"or joint.Name=="RootJoint"
+                    if shoulder or waist then
+                        local base=joint.Transform
+                        posed[joint]=posed[joint]or base;active[joint]=true
+                        local strain=math.sin(alpha*math.pi*8)*.07
+                        joint.Transform=posed[joint]*CFrame.Angles(shoulder and -1.1+alpha*.35+strain or -.13+strain*.3,0,0)
+                    end
+                end
+            end
+        end
     end
+    for joint,base in posed do if not active[joint]then
+        if joint.Parent then joint.Transform=base end
+        posed[joint]=nil
+    end end
 end)
 RunService.RenderStepped:Connect(function()
     local now=os.clock()
@@ -363,13 +390,26 @@ RunService.RenderStepped:Connect(function()
     chase.Visible=not reveal and (chasing or now<escapedUntil)
     chase.BackgroundColor3=chasing and Color3.fromRGB(135,51,66) or Color3.fromRGB(44,115,88)
     chaseLabel.Text=chasing and (player:GetAttribute("ChaseGuard") or "Хранитель").." • БЕГИ НА БАЗУ!" or "СПАСЁН! Ты в безопасности"
-    local gift=giftModels[player:GetAttribute("BreakingGift") or ""]
-    breaking.Visible=not reveal and gift~=nil
-    if gift then
-        local protection=gift:GetAttribute("Protection") or 0
-        local maximum=gift:GetAttribute("ProtectionMax") or 1
-        protectionFill.Size=UDim2.fromScale(math.clamp(protection/maximum,0,1),1)
-        breakingLabel.Text=string.format("УПАКОВКА %d / %d • удерживай",protection,maximum)
+    local gift=giftModels[player:GetAttribute("CapturingGift")or ""]
+    if gift and stoppedCaptures[gift]then gift=nil end
+    local serverNow=workspace:GetServerTimeNow()
+    for model,v in captureVisuals do
+        if not model.Parent or not model:GetAttribute("CaptureUserId")or (model:GetAttribute("CaptureUserId")==player.UserId and stoppedCaptures[model])then removeCaptureVisual(model,v)end
+    end
+    for name,model in giftModels do
+        local started=model:GetAttribute("CaptureStartedAt")
+        if started and model:GetAttribute("CaptureUserId")and not (model:GetAttribute("CaptureUserId")==player.UserId and stoppedCaptures[model])then
+            local v=captureVisuals[model]or makeCaptureVisual(model)
+            local duration=model:GetAttribute("CaptureDuration")or 1
+            local alpha=math.clamp((serverNow-started)/duration,0,1)
+            local strain=math.sin((serverNow-started)*23)
+            local resistance=(.15-.05*alpha)*strain
+            v.proxy:PivotTo(v.origin*CFrame.new(resistance,.9*alpha^1.6,0)*CFrame.Angles(alpha*.16,math.sin((serverNow-started)*17)*.025,strain*.065+alpha*.07))
+            v.fill.Size=UDim2.fromScale(alpha,1)
+            v.fill.BackgroundColor3=Color3.fromRGB(255,210,105):Lerp(Color3.fromRGB(130,255,175),math.clamp((alpha-.7)/.3,0,1))
+            v.label.Text=string.format(alpha>=.8 and "ЕЩЁ ЧУТЬ-ЧУТЬ • %d%%" or "ВЫТЯГИВАЕТ • %d%%",math.floor(alpha*100))
+        end
+        if captured[name]then releaseBurst(model);captured[name]=nil end
     end
     local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     local baseId=player:GetAttribute("BaseId");local base=baseId and scene.Bases:FindFirstChild(baseId)
@@ -396,7 +436,7 @@ RunService.RenderStepped:Connect(function()
     end
     if reveal then
         local r=reveal;local t=now-r.started;local data=r.data
-        local openAt=1.26
+        local openAt=r.growSeconds
         local progress=math.clamp(t/openAt,0,1)
         -- One numeric value drives both the text and the complete model each frame.
         local scale=revealScale(r,t)
@@ -437,6 +477,6 @@ RunService.RenderStepped:Connect(function()
         if data.SizeMultiplier>=2.5 and t>=openAt and t<openAt+.2 then
             workspace.CurrentCamera.CFrame*=CFrame.new(math.sin(t*130)*.04*data.SizeMultiplier,math.cos(t*150)*.035*data.SizeMultiplier,0)
         end
-        if t>=(data.SizeMultiplier>=2.5 and 2 or 1.85) then clearReveal() end
+        if t>=openAt+1.3 then clearReveal() end
     end
 end)

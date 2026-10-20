@@ -24,7 +24,7 @@ Catalog.Toys = {
     TimberTap={Name="Бревнобрык",Rarity="Legendary",Income=32,Motion="Waddle"},
 }
 Catalog.Zones = {
-    {Name="ПЛЮШЕВАЯ ЗОНА",Keeper="Plush",GuardName="Плюшевый Топотун",Weights={Common=90,Rare=10,Epic=0,Legendary=0},ChaseSpeed=15,PatrolSpeed=8,Warning=.55,Motion=3.5},
+    {Name="ПЛЮШЕВАЯ ЗОНА",Keeper="Plush",GuardName="Плюшевый Топотун",Weights={Common=90,Rare=10,Epic=0,Legendary=0},ChaseSpeed=15,PatrolSpeed=8,Warning=.9,Motion=3.5},
     {Name="ЗАВОДНАЯ ЗОНА",Keeper="Clockwork",GuardName="Заводной Перекрут",Weights={Common=40,Rare=48,Epic=12,Legendary=0},ChaseSpeed=22,PatrolSpeed=10,Warning=.45,Motion=7},
     {Name="КОШМАРНАЯ ЗОНА",Keeper="Nightmare",GuardName="Кошмарный Ночеглот",Weights={Common=10,Rare=35,Epic=45,Legendary=10},ChaseSpeed=30,PatrolSpeed=10,Warning=.35,Motion=5.5},
 }
@@ -38,8 +38,10 @@ Catalog.Sizes = {
 Catalog.BootsRefund=300
 Catalog.WorldScale=2
 Catalog.WorldScaleLimit=2.2
-Catalog.ToolMaxLevel=8
-Catalog.Packaging={Health={Common=3,Rare=10,Epic=24,Legendary=48},HitInterval=.25}
+Catalog.StrengthMaxLevel=8
+Catalog.Guard={TargetSwitchMargin=6,TargetSwitchSeconds=1}
+Catalog.Capture={Distance=12,PromptReleaseBuffer=.15,Times={Common={.5,.2},Rare={1.8,.5},Epic={3.5,1},Legendary={7,1.8}},
+    CarryPenalty={Common=.01,Rare=.05,Epic=.10,Legendary=.16},HighStrengthPenalty=.1}
 Catalog.Catch={Windup=.18,FollowThrough=.55,GraceSeconds=2.4,HorizontalSpeed=86,VerticalSpeed=64,
     MaxHorizontalSpeed=90,MaxVerticalSpeed=72,MaxFallSpeed=95,Spin=2.5,LandingDelay=.15,MaxFlightSeconds=2.2}
 Catalog.GiftRespawnSeconds=18
@@ -54,13 +56,18 @@ function Catalog.SpeedPrice(level)
     if level<5 then return firstPrices[level+1] end
     return math.min(LIMIT,math.ceil(5000*1.65^math.min(level-4,58)))
 end
-function Catalog.ToolPower(level) return 1.7^level end
-function Catalog.ToolPrice(level)
-    if level>=Catalog.ToolMaxLevel then return nil end
+function Catalog.StrengthPrice(level)
+    if level>=Catalog.StrengthMaxLevel then return nil end
     return math.ceil(80*2.2^level)
 end
-function Catalog.BreakDuration(rarity,level,remaining)
-    return math.max(.15,math.ceil((remaining or Catalog.Packaging.Health[rarity])/Catalog.ToolPower(level))*Catalog.Packaging.HitInterval)
+function Catalog.CaptureDuration(rarity,level)
+    local times=Catalog.Capture.Times[rarity]
+    local alpha=math.clamp(level/Catalog.StrengthMaxLevel,0,1)
+    return times[1]*(times[2]/times[1])^alpha
+end
+function Catalog.CarryMultiplier(rarity,level)
+    local alpha=math.clamp(level/Catalog.StrengthMaxLevel,0,1)
+    return 1-Catalog.Capture.CarryPenalty[rarity]*(1-alpha*(1-Catalog.Capture.HighStrengthPenalty))
 end
 function Catalog.Roll(entries, rng)
     local total=0
