@@ -1,0 +1,32 @@
+[
+  {
+    "instance": "ReplicatedStorage.ToyCatalog",
+    "file": "toy-keeper/src/ReplicatedStorage/ToyCatalog.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "ServerScriptService.ToyGame",
+    "file": "toy-keeper/src/ServerScriptService/ToyGame.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "ServerScriptService.ToyKeeper",
+    "file": "toy-keeper/src/ServerScriptService/ToyKeeper.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "ServerScriptService.ToyProgress",
+    "file": "toy-keeper/src/ServerScriptService/ToyProgress.luau",
+    "class": "ModuleScript"
+  },
+  {
+    "instance": "ServerScriptService.ToyServer",
+    "file": "toy-keeper/src/ServerScriptService/ToyServer.luau",
+    "class": "Script"
+  },
+  {
+    "instance": "StarterPlayer.StarterPlayerScripts.ToyHUD",
+    "file": "toy-keeper/src/StarterPlayer/StarterPlayerScripts/ToyHUD.luau",
+    "class": "LocalScript"
+  }
+]
